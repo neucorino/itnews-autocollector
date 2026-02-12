@@ -1,4 +1,5 @@
 import os
+import json
 import time
 from datetime import datetime, timedelta
 import pandas as pd
@@ -29,36 +30,66 @@ options.add_argument('--window-size=1920,1080')
 service = Service('/usr/bin/chromedriver')
 driver = webdriver.Chrome(service=service, options=options)
 
-def get_gemini_summary(title: str) -> str:
+def process_news_batch(items):
     """
-    Geminiを使用してニュースタイトルの要約・解説を生成する
+    最大15件のニュースを一括で要約・リライトする
     """
-    if not GEMINI_API_KEY:
-        return "APIキーが設定されていないため要約をスキップします。"
+    if not items or not GEMINI_API_KEY:
+        return []
+
+    # プロンプトの構築
+    titles_input = "\n".join([f"{i+1}. {item['title']}" for i, item in enumerate(items)])
     
     prompt = f"""
-    以下のITニュースのタイトルから、その内容を1文（50文字程度）で簡潔に要約し、
-    エンジニアにとっての重要度を「高・中・低」で示してください。
+    以下のITニュース記事のリストを処理してください。
     
-    タイトル: {title}
+    【処理ルール】
+    1. 各記事のタイトルを、内容を損なわず50文字以内で魅力的にリライトしてください。
+    2. 各記事の内容を1文（50文字程度）で要約し、重要度（高・中・低）を判定してください。
+    3. 出力は必ず以下のJSON形式の配列で返してください。
     
-    出力フォーマット:
-    【要約】(要約内容) / 重要度: (高・中・低)
+    JSON形式例:
+    [
+      {{"id": 1, "optimized_title": "リライト後のタイトル", "summary": "【要約】内容 / 重要度: 高"}},
+      ...
+    ]
+
+    【対象リスト】
+    {titles_input}
     """
-    
+
     try:
+        # JSONモードでレスポンスを取得
         response = client.models.generate_content(
-            model="gemini-2.0-flash", # 最新の高速モデルを使用
-            contents=prompt
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
         )
-        return response.text.strip()
+        
+        # JSONをパースして元のデータと結合
+        results = json.loads(response.text)
+        for i, res in enumerate(results):
+            items[i]['optimized_title'] = res.get('optimized_title', items[i]['title'])
+            items[i]['summary'] = res.get('summary', '要約に失敗しました')
+        
+        return items
     except Exception as e:
-        return f"要約エラー: {e}"
+        print(f"⚠️ Gemini一括処理エラー: {e}")
+        # エラー時は元のタイトルを使用し、要約をエラーメッセージにする
+        for item in items:
+            item['optimized_title'] = item['title']
+            item['summary'] = "要約を生成できませんでした"
+        return items
 
 def save_and_clean_csv(new_data, filename="it_news_database.csv", keep=30):
-    # 列名に「要約」を追加
+    if not new_data: return
+    
     columns = ["取得日", "サイト名", "記事タイトル", "URL", "要約"]
-    new_df = pd.DataFrame(new_data, columns=columns)
+    # DataFrame作成用に整形
+    rows = [[d['date'], d['site'], d['optimized_title'], d['url'], d['summary']] for d in new_data]
+    new_df = pd.DataFrame(rows, columns=columns)
     
     try:
         old_df = pd.read_csv(filename)
@@ -68,13 +99,9 @@ def save_and_clean_csv(new_data, filename="it_news_database.csv", keep=30):
 
     combined_df["取得日"] = pd.to_datetime(combined_df["取得日"], errors='coerce')
     combined_df = combined_df.dropna(subset=["取得日"])
-    
     limit_date = datetime.now() - timedelta(days=keep)
-    clean_df = combined_df[combined_df["取得日"] > limit_date]
-    clean_df = clean_df.drop_duplicates(subset=["記事タイトル"])
-
+    clean_df = combined_df[combined_df["取得日"] > limit_date].drop_duplicates(subset=["記事タイトル"])
     clean_df.to_csv(filename, index=False, encoding="utf-8-sig")
-    print(f"📊 データベース更新完了: {len(clean_df)} 件のデータを保持")
 
 # --- メイン処理 ---
 urls = [
@@ -82,64 +109,67 @@ urls = [
     {"name": "はてブIT", "url": "https://b.hatena.ne.jp/hotentry/it"}
 ]
 
-news_list = []
+raw_news_items = []
 
 try:
     for target in urls:
         print(f"🌐 {target['name']} をスキャン中...")
         driver.get(target['url'])
-        
-        # 明示的な待機（最大10秒）
         wait = WebDriverWait(driver, 10)
         wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "a")))
 
         elements = driver.find_elements(By.TAG_NAME, "a")
         count = 0
-        
         for el in elements:
             title = el.text.strip()
             link = el.get_attribute("href")
             
-            if len(title) > 15 and link and link.startswith("http"):
-                print(f"  📝 要約生成中: {title[:20]}...")
-                # Geminiによる要約
-                summary = get_gemini_summary(title)
-                
-                news_list.append([
-                    datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    target['name'],
-                    title,
-                    link,
-                    summary
-                ])
-                count += 1
-            
-            if count >= 3: # 各サイト上位3件
+            # 無効な記事の除外（条件3）
+            if not title or title == "不明" or len(title) < 10:
+                continue
+            if not link or not link.startswith("http"):
+                continue
+
+            raw_news_items.append({
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "site": target['name'],
+                "title": title,
+                "url": link
+            })
+            count += 1
+            if count >= 8: # 各サイトから多めに取って後で絞る（合計15件程度にするため）
                 break
-    
-    if news_list:
-        save_and_clean_csv(news_list)
 
-        # メール本文の構築
-        mail_body = f"🚀 【最強PC】ITニュース要約配信 ({datetime.now().strftime('%Y/%m/%d %H:%M')})\n"
-        mail_body += "="*40 + "\n\n"
-        
-        for item in news_list:
-            mail_body += f"🔹 {item[2]}\n"
-            mail_body += f"   {item[4]}\n" # 要約
-            mail_body += f"   🔗 {item[3]}\n\n"
-        
-        mail_body += "-"*40 + "\nこのメールはWSL2物理サーバーから自動送信されました。"
+    # 最大15件に絞り込み
+    raw_news_items = raw_news_items[:15]
 
-        from my_utils import send_gmail
-        send_gmail(
-            subject=f"ITニュース要約 ({datetime.now().strftime('%m/%d')})",
-            body=mail_body
-        )
-    
+    # 一括要約・リライト処理（条件1, 2）
+    processed_news = process_news_batch(raw_news_items)
+
+    # メール本文の構築
+    mail_subject = f"ITニュース要約 ({datetime.now().strftime('%m/%d')})"
+    mail_body = f"🚀 【最強PC】ITニュース配信 ({datetime.now().strftime('%Y/%m/%d %H:%M')})\n"
+    mail_body += "="*40 + "\n\n"
+
+    if not processed_news:
+        # 空リストへの対応（条件4）
+        mail_body += "現在主要なニュースはございません。\n"
+    else:
+        for item in processed_news:
+            mail_body += f"🔹 {item['optimized_title']}\n"
+            mail_body += f"   {item['summary']}\n"
+            mail_body += f"   🔗 {item['url']}\n\n"
+        
+        save_and_clean_csv(processed_news)
+
+    mail_body += "-"*40 + "\nこのメールはWSL2物理サーバーから自動送信されました。"
+
+    from my_utils import send_gmail
+    send_gmail(subject=mail_subject, body=mail_body)
+    print("✅ 処理が正常に完了しました。")
+
 except Exception as e:
     print(f"❌ システムエラー: {e}")
 
 finally:
     driver.quit()
-    print("👋 ブラウザを終了しました。")
