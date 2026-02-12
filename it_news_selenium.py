@@ -1,6 +1,5 @@
 import os
 import json
-import time
 from datetime import datetime, timedelta
 import pandas as pd
 from dotenv import load_dotenv
@@ -12,6 +11,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from google import genai
 from google.genai import types
+import logging
+from logging.handlers import RotatingFileHandler
 
 # .envの読み込み
 load_dotenv()
@@ -29,6 +30,19 @@ options.add_argument('--window-size=1920,1080')
 
 service = Service('/usr/bin/chromedriver')
 driver = webdriver.Chrome(service=service, options=options)
+
+# --- ログの設定 ---
+# ログファイルが巨大化しないように、5MBごとにローテーション（最大3世代）する設定
+log_file = "it_news_system.log"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=3),
+        logging.StreamHandler() # ターミナルにも表示
+    ]
+)
+logger = logging.getLogger(__name__)
 
 def process_news_batch(items):
     """
@@ -59,6 +73,8 @@ def process_news_batch(items):
     """
 
     try:
+        logger.info(f"Gemini APIに {len(items)} 件のリクエストを送信中...")
+
         # JSONモードでレスポンスを取得
         response = client.models.generate_content(
             model="gemini-2.0-flash",
@@ -67,15 +83,18 @@ def process_news_batch(items):
                 response_mime_type="application/json"
             )
         )
+
+        logger.info("Gemini APIからのレスポンスを受信しました。")
         
         # JSONをパースして元のデータと結合
         results = json.loads(response.text)
         for i, res in enumerate(results):
             items[i]['optimized_title'] = res.get('optimized_title', items[i]['title'])
             items[i]['summary'] = res.get('summary', '要約に失敗しました')
-        
         return items
+
     except Exception as e:
+        logger.error(f"Gemini一括処理で例外発生: {e}", exc_info=True) # exc_info=Trueでスタックトレースも記録
         print(f"⚠️ Gemini一括処理エラー: {e}")
         # エラー時は元のタイトルを使用し、要約をエラーメッセージにする
         for item in items:
@@ -112,8 +131,10 @@ urls = [
 raw_news_items = []
 
 try:
+    logger.info("=== ニュース収集処理開始 ===")
     for target in urls:
         print(f"🌐 {target['name']} をスキャン中...")
+        logger.info(f"{target['name']} から記事を取得中...")
         driver.get(target['url'])
         wait = WebDriverWait(driver, 10)
         wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "a")))
@@ -169,7 +190,9 @@ try:
     print("✅ 処理が正常に完了しました。")
 
 except Exception as e:
+    logger.critical(f"システムが異常終了しました: {e}", exc_info=True)
     print(f"❌ システムエラー: {e}")
 
 finally:
     driver.quit()
+    logger.info("=== ニュース収集処理終了 ===")
