@@ -1,0 +1,8 @@
+Python 3.12以降の最新機能
+WSL2 / Ubuntu のパフォーマンス最適化
+Seleniumを用いた自動化技術
+ローカルLLMおよびGemini APIの活用
+Google AI studioの最新機能
+Chat GPTの最新機能
+フリーランスエンジニア向け好条件案件の見つけ方
+生成AIに関する最新ニュース
