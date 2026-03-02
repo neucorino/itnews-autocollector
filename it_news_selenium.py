@@ -3,12 +3,9 @@ import json
 from datetime import datetime, timedelta
 import pandas as pd
 from dotenv import load_dotenv
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import requests
+from requests.exceptions import HTTPError
+import feedparser
 from google import genai
 from google.genai import types
 import logging
@@ -27,16 +24,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 model_id = "gemini-2.0-flash"
 TEMPERATURE = 0.2
 
-# Webドライバー設定
-CHROMEDRIVER_PATH = '/usr/bin/chromedriver'
-DRIVER_TIMEOUT = 10
-WINDOW_SIZE = '1920,1080'
-
 # ニュース収集設定
-NEWS_SOURCES = [
-    {"name": "Zenn", "url": "https://zenn.dev/topics/it"},
-    {"name": "はてブIT", "url": "https://b.hatena.ne.jp/hotentry/it"}
-]
+NEWS_SOURCES = "https://news.ycombinator.com/rss"
+feed = feedparser.parse(NEWS_SOURCES)
 MAX_ARTICLES_PER_SOURCE = 8
 MAX_TOTAL_ARTICLES = 15
 
@@ -74,127 +64,13 @@ def setup_logger():
 logger = setup_logger()
 
 # ========================
-# 🌐 Seleniumドライバー初期化
+# 🌐 feedparser
 # ========================
-def create_chrome_driver():
-    """Chromeドライバーを初期化して返す"""
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument(f'--window-size={WINDOW_SIZE}')
-    
-    service = Service(CHROMEDRIVER_PATH)
-    return webdriver.Chrome(service=service, options=options)
-
-def is_noise_url(url) :
-    """
-    ニュース収集システム用：記事ではないノイズURLを厳格に判定する。
-    
-    Args:
-        url (str): 判定対象のURL
-    
-    Returns:
-        bool: ノイズ(除外対象)であれば True, 読むべき記事なら False
-    """
-    
-    # ---------------------------------------------------------
-    # 1. Zenn (zenn.dev) - 厳格なホワイトリスト判定
-    # ---------------------------------------------------------
-    if 'zenn.dev' in url:
-        # 【許可パターン】
-        # 構成: ドメイン / ユーザーID / タイプ(articles等) / スラッグ(1文字以上)
-        # 注意: 末尾に "/edit" や "/preview" がつくものは除外対象
-        allow_pattern = r'zenn\.dev/[^/]+/(articles|scraps|books)/[^/]+$'
-        
-        # URLからクエリパラメータ(?以降)やフラグメント(#以降)を除去して判定
-        clean_url = url.split('?')[0].split('#')[0].rstrip('/')
-
-        # 許可パターンにマッチしないものは、ユーザーTOP、一覧、Topicsを含め全てノイズ
-        if not re.search(allow_pattern, clean_url):
-            return True
-            
-        # 許可パターンにはマッチしたが、編集画面などはノイズ
-        if re.search(r'/(edit|preview|dashboard|analytics)', url):
-            return True
-
-        # ここまで残ったものだけが「純粋な記事」
-        return False
-
-    # ---------------------------------------------------------
-    # 2. はてなブックマーク (b.hatena.ne.jp) - ブラックリスト判定
-    # ---------------------------------------------------------
-    if 'b.hatena.ne.jp' in url:
-        # これらは記事そのものではなく、管理画面や一覧、ラッパーページ
-        hatena_noise = [
-            r'/entry/s/',   # HTTPSサイトのブックマークページ (記事へのリンク集に近い)
-            r'/site/',      # 特定ドメインの記事一覧
-            r'/search',     # 検索結果
-            r'/guide',      # ガイド
-            r'/hotentry',   # 人気エントリー一覧
-            r'/entrylist',  # 新着エントリー一覧
-            r'/ct/',        # カテゴリ一覧
-            r'/my',         # マイページ
-            r"ad-hatena\.com",
-            r"zenn\.dev/topics/",
-            r"zenn\.dev/settings",
-        ]
-        if any(re.search(p, url) for p in hatena_noise):
-            return True
-
-    # ---------------------------------------------------------
-    # 3. 汎用ブラックリスト (SNS, ログイン, 設定, ファイル)
-    # ---------------------------------------------------------
-    general_noise = [
-        # SNSシェア用リンク
-        r'(twitter|x|facebook|line|linkedin)\.com/(share|intent|sharer)',
-        
-        # システム・管理系
-        r'/(login|signin|signup|register|auth|password)',
-        r'/(settings|preferences|notifications|account)',
-        r'/(search|find|query)\?',
-        r'/rss(\.xml)?$',
-        r'/feed/?$',
-        
-        # ユーザープロフィール系 (汎用的なパス)
-        # ※誤爆を防ぐため、ドメインを絞るか慎重に適用が必要だが、
-        #   Qiitaなどの主要サイト向けにパターンを追加
-        r'qiita\.com/[^/]+/(items|following|followers|feed)', # Qiitaのユーザーサブページ
-        r'qiita\.com/tags/', # タグ一覧
-    ]
-
-    if any(re.search(p, url) for p in general_noise):
-        return True
-
-    return False
-
-# --- 動作検証 ---
-if __name__ == "__main__":
-    test_cases = [
-        # --- Zenn (期待値: 記事のみFalse, それ以外True) ---
-        ("https://zenn.dev/user/articles/python-tips-123", False),  # 記事詳細 -> OK
-        ("https://zenn.dev/user/scraps/scrap-id-999", False),        # スクラップ詳細 -> OK
-        ("https://zenn.dev/user/articles", True),                    # 記事一覧(ノイズ) -> OK
-        ("https://zenn.dev/user", True),                             # ユーザーTOP -> OK
-        ("https://zenn.dev/topics/python", True),                    # トピック一覧 -> OK
-        ("https://zenn.dev/p/topic-name", True),                     # トピック詳細 -> OK
-        ("https://zenn.dev/user/articles/slug/edit", True),          # 編集画面 -> OK
-        
-        # --- Hatena (期待値: 記事本体ではないページはTrue) ---
-        ("https://b.hatena.ne.jp/entry/s/zenn.dev/articles/...", True), # ブックマークページ -> OK
-        ("https://b.hatena.ne.jp/site/zenn.dev", True),              # ドメイン一覧 -> OK
-        ("https://b.hatena.ne.jp/hotentry/it", True),                # ホットエントリー -> OK
-        
-        # --- General ---
-        ("https://twitter.com/share?url=...", True),                 # シェアリンク -> OK
-    ]
-
-    print(f"{'URL':<60} | {'Is Noise?':<10} | {'Status'}")
-    print("-" * 85)
-    for url, expected in test_cases:
-        result = is_noise_url(url)
-        status = "PASS" if result == expected else "FAIL"
-        print(f"{url[:57]+'...':<60} | {str(result):<10} | {status}")
+for entry in feed.entries:
+    # 必要な情報を辞書から取り出す
+    title = entry.get('title', '無題')
+    link = entry.get('link', '#')
+    summary = entry.get('summary', entry.get('description', '本文なし'))
 
 # ========================
 # 🤖 Gemini API用関数
@@ -506,7 +382,6 @@ def main():
         print(f"❌ システムエラー: {e}")
         
     finally:
-        driver.quit()
         logger.info("=== ニュース収集処理終了 ===")
 
 
