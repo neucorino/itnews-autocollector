@@ -382,6 +382,7 @@ def main():
         print(f"❌ システムエラー: {e}")
         
     finally:
+        driver.quit()
         logger.info("=== ニュース収集処理終了 ===")
 
 

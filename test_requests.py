@@ -27,7 +27,7 @@ json_file_path = "processed_ids.json"
 # Gemini設定
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 model_id = "gemini-2.0-flash"
-TEMPERATURE = 0.2
+TEMPERATURE = 0.1
 
 # CSV設定
 CSV_FILENAME = "/home/yzen-64/projects/it-news-system/it_news_database.csv"
@@ -62,20 +62,92 @@ def fetch_feed(url: str) -> list:
     logger.info(f"{len(feed.entries)} 件の記事を取得しました。")
     return feed.entries
 
-#jsonファイルから過去に処理した記事IDのリストを読み込む
-try:
-    # 読み込み
-    with open("processed_ids.json", 'r',encoding="utf-8") as f:
-        processed_ids = json.load(f) # ファイルからリストを復元
-except FileNotFoundError:
-    processed_ids = [] # ファイルがない場合は空のリストを初期化
-except json.JSONDecodeError:
-    logger.error("processed_ids.json の内容が不正です。空のリストで初期化します。")
-    processed_ids = []
-print(f"過去に処理した記事IDの数: {len(processed_ids)}")
+entries = fetch_feed(URL)
+
+# ──────────────────────────────────────────
+# 3.jsonファイルの読み込み
+# ──────────────────────────────────────────
+def load_processed_ids(json_file_path: str) -> list:
+    """jsonファイルから過去に処理した記事IDのリストを読み込む"""
+    try:
+        with open(json_file_path, 'r', encoding="utf-8") as f:
+            processed_ids = json.load(f) # ファイルからリストを復元
+            logger.info(f"過去に処理した記事IDの数: {len(processed_ids)}")
+            return processed_ids
+    except FileNotFoundError:
+        logger.warning(f"{json_file_path} が見つかりません。空のリストで初期化します。")
+        return [] # ファイルがない場合は空のリストを初期化
+    except json.JSONDecodeError:
+        logger.error(f"{json_file_path} の内容が不正です。空のリストで初期化します。")
+        return []
+
+processed_ids = load_processed_ids(json_file_path)
+
+# ──────────────────────────────────────────
+# 4. jsonファイルへの保存関数
+# ──────────────────────────────────────────
+def save_processed_ids(processed_ids: list, json_file_path: str):
+    """処理した記事IDのリストをjsonファイルに保存する"""
+    try:
+        with open(json_file_path, 'w', encoding="utf-8") as f:
+            json.dump(processed_ids, f) # リストをファイルに保存
+            logger.info(f"処理した記事IDを {json_file_path} に保存しました。")
+    except Exception as e:
+        logger.error(f"{json_file_path} への保存に失敗しました: {e}")
+
+save_processed_ids(json_file_path, updated_ids)
+
+# ──────────────────────────────────────────
+# 5. Gemini APIへのリクエスト
+# ──────────────────────────────────────────
+def analyze_article_with_gemini(title: str, summary: str) -> dict:
+    """記事のタイトルと要約をGemini APIに送信して分析結果を辞書で返す"""
+    prompt = f"""
+    以下の記事をITエンジニアの視点で分析してください。
+    【タイトル】: {title}
+    【内容】: {summary}
+    出力形式は以下のJSON形式にしてください
+    {{
+        "summary": "3行で要約した文章",
+        "importance": 1から10の数値,
+        "reason": "重要度の理由",
+        "category": "技術カテゴリ"
+    }}"""
+    
+    client = genai.Client(api_key=GEMINI_API_KEY)
+
+    system_instruction = f"""
+    あなたは、30年の経験を持つシニアソフトウェアエンジニア兼技術評論家です。
+    提供されるITニュース記事を、以下の基準で厳格に評価してください。
+    採点基準（importance）: 10点満点。
+    1〜3: 一般的な製品発表、宣伝記事、既知の情報のまとめ。
+    4〜6: 特定のライブラリのアップデート、実用的なTips。
+    7〜8: 業界標準を変え得る新技術、重大な脆弱性報告、言語のメジャーアップデート。
+    9〜10: 歴史的なブレイクスルー、全エンジニアが知るべきパラダイムシフト。
+    出力形式: 必ず純粋なJSON形式のみで回答してください。余計な挨拶や解説は一切不要です。
+    JSON構成: {{"importance": "1から10の数値", "summary": "3行で要約した文章", "reason": "理由"}}"
+    """
+
+    response = client.models.generate_content(
+        model=model_id,
+        contents=prompt,
+        config=types.GenerateContentConfig(response_mime_type="application/json", temperature=TEMPERATURE)
+    )
+    
+    raw_text = response.text
+    clean_text = re.search(r'\{.*\}', raw_text, re.DOTALL)
+    
+    if clean_text:
+        clean_text = clean_text.group(0)
+        analysis = json.loads(clean_text)#文字列(String)を辞書(dict)に変換！
+        importance_score = analysis.get("importance", 0) #importanceの数値を取得（なければ0）
+        return analysis
+    else:
+        logger.warning("GeminiのレスポンスからJSONが見つかりませんでした。")
+        return {}
 
 #記事のループ処理
-for entry in fetch_feed(URL):
+for entry in entries:
     try:
         #記事の情報を取得
         title = entry.get('title', '無題')
@@ -85,61 +157,11 @@ for entry in fetch_feed(URL):
 
         #重複チェック（guid が過去データにないか）
         if guid not in processed_ids:
-            #continue # すでに処理済みの記事はスキップ
-            # 新着記事の処理（Geminiに投げるなど）
-            print(f"新着記事を発見: {entry.title}",f"ID:{guid}")
-
-           
-
-            prompt = f"""
-            以下の記事をITエンジニアの視点で分析してください。
-            【タイトル】: {title}
-            【内容】: {summary}
-            出力形式は以下のJSON形式にしてください
-            {{
-                "summary": "3行で要約した文章",
-                "importance": 1から10の数値,
-                "reason": "重要度の理由",
-                "category": "技術カテゴリ"
-            }}"""
+            continue # すでに処理済みの記事はスキップ
+        try:
             
-             # Geminiクライアントを初期化してAPIリクエストを送信
-            client = genai.Client(api_key=GEMINI_API_KEY)
-
-            # --- システム指示を定義 ---
-            system_instruction = f"""
-            あなたは、30年の経験を持つシニアソフトウェアエンジニア兼技術評論家です。
-            提供されるITニュース記事を、以下の基準で厳格に評価してください。
-            採点基準（importance）: 10点満点。
-            1〜3: 一般的な製品発表、宣伝記事、既知の情報のまとめ。
-            4〜6: 特定のライブラリのアップデート、実用的なTips。
-            7〜8: 業界標準を変え得る新技術、重大な脆弱性報告、言語のメジャーアップデート。
-            9〜10: 歴史的なブレイクスルー、全エンジニアが知るべきパラダイムシフト。
-            出力形式: 必ず純粋なJSON形式のみで回答してください。余計な挨拶や解説は一切不要です。
-            JSON構成: {{"importance": "1から10の数値", "summary": "3行で要約した文章", "reason": "理由"}}"
-            """
-
-            # APIからのレスポンスを受信
-            response = client.models.generate_content(
-            model=model_id,
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=TEMPERATURE)
-            )
-            #logger.info("Gemini APIからのレスポンスを受信しました。")
-
-
-            
-            raw_text = response.text # ここに「JSONっぽい文字列」が入る
-            # もし Gemini が ```json ... ``` という装飾をつけてきたら除去する
-            clean_text = re.search(r'\{.*\}', raw_text, re.DOTALL)
-            if clean_text:
-                clean_text = clean_text.group(0) # マッチした部分を取り出す
-                analysis = json.loads(clean_text)#文字列(String)を辞書(dict)に変換！
-                importance_score = analysis.get("importance", 0) #importanceの数値を取得（なければ0）
-                #print(f"解析成功！スコア: {analysis['importance']}") #importanceの数値を表示
-            else:
-                logger.warning("GeminiのレスポンスからJSONが見つかりませんでした。")
-
+            analysis = analyze_article_with_gemini(title, summary)
+            importance_score = analysis.get("importance", 0)
             if importance_score >= 7:
                 print(f"🔥 重要記事発見！スコア: {importance_score}")
             
@@ -163,13 +185,33 @@ for entry in fetch_feed(URL):
                 "reason": analysis.get("reason", ""),
                 "要約": analysis.get("summary", "")
             }
-            # 1. ファイルが存在するかチェック
+            # ファイルが存在するかチェック
             file_exists = os.path.exists(CSV_FILENAME)
-            # 2. DataFrameを作る
+            # DataFrameを作る
             df = pd.DataFrame([new_row])
-            # 3. 追記モード('a' = append)で保存
-            # header=not file_exists は「ファイルがない時だけ見出しを付ける」という魔法の呪文です
-            df.to_csv(CSV_FILENAME, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
+
+            # --- 修正後の流れ ---
+            # 既存のデータを読み込む (重複チェックや削除のために一度全出し
+            if os.path.exists(CSV_FILENAME):
+                df = pd.read_csv(CSV_FILENAME)
+                # 型変換と古いデータの削除
+                df["取得日"] = pd.to_datetime(df["取得日"], errors='coerce')
+                df = df.dropna(subset=["取得日"])
+                
+                limit_date = datetime.now() - timedelta(days=keep_days)
+                clean_df = df[df["取得日"] > limit_date]
+
+                # 今回の新しい記事(new_row)を追加するならここで
+                new_df = pd.DataFrame([new_row])
+                clean_df = pd.concat([clean_df, new_df], ignore_index=True)
+
+                # 重複削除（URLベース）
+                clean_df = clean_df.drop_duplicates(subset=["URL"], keep='first')
+
+                # 上書き保存（mode='a'は使わず、）
+                clean_df.to_csv(CSV_FILENAME, index=False, encoding='utf-8-sig')
+                
+                print(f"📊 CSV更新完了: 現在 {len(clean_df)} 件の記事を保存中")
             
     except Exception as e:
         logger.error(f"記事解析エラー: {title}, エラー: {e}")
