@@ -1,53 +1,49 @@
-import os
-import json
-from datetime import datetime, timedelta
-import pandas as pd
-from dotenv import load_dotenv
 import requests
-from requests.exceptions import HTTPError
 import feedparser
 from google import genai
 from google.genai import types
 import logging
 from logging.handlers import RotatingFileHandler
-from my_utils import send_gmail
+import json
+from dotenv import load_dotenv
+import os
 import re
-from urllib.parse import urlparse
+from datetime import datetime, timedelta
+import pandas as pd
+from my_utils import send_gmail
 
-# ========================
-# ⚙️ 設定値（全て集約）
-# ========================
+# ──────────────────────────────────────────
+# 0. 定数と設定
+# ──────────────────────────────────────────
+
+# 環境変数の読み込み
 load_dotenv()
 
-# Gemini設定
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-model_id = "gemini-2.0-flash"
-TEMPERATURE = 0.2
-
-# ニュース収集設定
-NEWS_SOURCES = "https://news.ycombinator.com/rss"
-feed = feedparser.parse(NEWS_SOURCES)
-MAX_ARTICLES_PER_SOURCE = 8
-MAX_TOTAL_ARTICLES = 15
-
-# CSV設定
-CSV_FILENAME = "/home/yzen-64/projects/it-news-system/it_news_database.csv"
-CSV_KEEP_DAYS = 30
-CSV_COLUMNS = ["取得日", "サイト名", "記事タイトル", "URL", "要約"]
-
-# ロギング設定
+# ロギングの設定
 LOG_FILE = "it_news_system.log"
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
 
-# メール設定
-EMAIL_HEADER_SEPARATOR = "=" * 40
-EMAIL_ITEM_SEPARATOR = "-" * 40
-MAIL_SIGNATURE = "このメールはWSL2物理サーバーから自動送信されました。"
+# RSSフィードのURL
+URL = "https://news.ycombinator.com/rss"
 
-# ========================
-# 🔧 ロギング初期化
-# ========================
+# 過去に処理した記事IDを保存するjsonファイルのパス
+json_file_path = "processed_ids.json"
+
+# Gemini設定
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+model_id = "gemini-2.0-flash"
+TEMPERATURE = 0.1
+
+# CSV設定
+CSV_FILENAME = "/home/yzen-64/projects/it-news-system/it_news_database.csv"
+CSV_KEEP_DAYS = 30
+
+IMPORTANCE_THRESHOLD = 7 
+
+# ──────────────────────────────────────────
+# 1. ロギングの設定
+# ──────────────────────────────────────────
 def setup_logger():
     """ロギングを設定して、loggerオブジェクトを返す"""
     logging.basicConfig(
@@ -60,331 +56,221 @@ def setup_logger():
     )
     return logging.getLogger(__name__)
 
+# ──────────────────────────────────────────
+# 2. RSS フィードの取得
+# ──────────────────────────────────────────
+def fetch_feed(url: str) -> list:
+    """RSS フィードを取得してエントリ一覧を返す"""
+    #RSSの取得と解析
+    feed = feedparser.parse(url)
+    if feed.bozo:
+        raise Exception("RSSの形式が壊れています")
+    logger.info(f"{len(feed.entries)} 件の記事を取得しました。")
+    return feed.entries
 
-logger = setup_logger()
-
-# ========================
-# 🌐 feedparser
-# ========================
-for entry in feed.entries:
-    # 必要な情報を辞書から取り出す
-    title = entry.get('title', '無題')
-    link = entry.get('link', '#')
-    summary = entry.get('summary', entry.get('description', '本文なし'))
-
-# ========================
-# 🤖 Gemini API用関数
-# ========================
-def process_news_batch(items):
-    """
-    複数のニュース記事をGemini APIで一括処理
-    
-    Args:
-        items (list): 辞書のリスト。各要素は 'ID', 'title', 'url' キーを持つ
-    
-    Returns:
-        list: 'optimized_title', 'summary' ,'analysis', 'score' が追加された辞書のリスト
-    """
-    if not items or not GEMINI_API_KEY:
+# ──────────────────────────────────────────
+# 3.jsonファイルの読み込み
+# ──────────────────────────────────────────
+def load_processed_ids(json_file_path: str) -> list:
+    """jsonファイルから過去に処理した記事IDのリストを読み込む"""
+    try:
+        with open(json_file_path, 'r', encoding="utf-8") as f:
+            processed_ids = json.load(f) # ファイルからリストを復元
+            logger.info(f"過去に処理した記事IDの数: {len(processed_ids)}")
+            return processed_ids
+    except FileNotFoundError:
+        logger.warning(f"{json_file_path} が見つかりません。空のリストで初期化します。")
+        return [] # ファイルがない場合は空のリストを初期化
+    except json.JSONDecodeError:
+        logger.error(f"{json_file_path} の内容が不正です。空のリストで初期化します。")
         return []
-    
-    # interests.txtからユーザーの興味関心を読み込む
-    interests_path = '/home/yzen-64/projects/it-news-system/interests.txt'
-    if os.path.exists(interests_path):
-        with open(interests_path, 'r', encoding='utf-8') as f:
-            user_interests = f.read()
-    else:
-        user_interests = "IT全般、最新技術動向" # ファイルがない場合のデフォルト
 
-    titles_input = "\n".join([f"ID:{i+1} | Title: {item['title']} | URL: {item.get('url', 'N/A')}" for i, item in enumerate(items)])
-    
-    # Gemini APIへのプロンプトを構築
+# ──────────────────────────────────────────
+# 4. jsonファイルへの保存関数
+# ──────────────────────────────────────────
+def save_processed_ids(processed_ids: list, json_file_path: str):
+    """処理した記事IDのリストをjsonファイルに保存する"""
+    try:
+        with open(json_file_path, 'w', encoding="utf-8") as f:
+            json.dump(processed_ids, f,ensure_ascii=False, indent=2) # リストをファイルに保存
+        logger.info(f"処理した記事IDを {json_file_path} に保存しました。")
+    except Exception as e:
+        logger.error(f"{json_file_path} への保存に失敗しました: {e}")
+
+# ──────────────────────────────────────────
+# 5. Gemini APIへのリクエスト
+# ──────────────────────────────────────────
+def analyze_article_with_gemini(title: str, summary: str) -> dict:
+    """記事のタイトルと要約をGemini APIに送信して分析結果を辞書で返す"""
     prompt = f"""
-    【Role】
-    あなたは「情報の質」に妥協を許さない、超合理主義なシニアエンジニア向けの技術顧問です。
-    提供されたニュース記事を、ユーザーの【関心事】に基づき、以下の【評価指標】でステップバイステップに分析し、その結果をJSON形式で出力してください。
-    あなたの時間は極めて貴重であり、読むに値しない「ゴミ記事」を推薦した部下には即座に解雇を言い渡します。
-
-    【ユーザーの関心事】
-    {user_interests}
-
-    【評価指標（各10点満点で内部評価）】
-    1. 関心事合致度: ユーザーの関心事と技術スタックにどれだけ直結するか
-    2. 技術的密度: コード、アーキテクチャ、具体的なTipsが含まれているか
-    3. 再現性・即効性: すぐに試せるか、または具体的なアクションに繋がるか
-    4. 将来性・普及性: 一過性の流行ではなく、今後の標準技術になるか
-    5. 信頼性・ノイズ排除: 宣伝や釣り記事ではなく、信頼できる情報源か
-
-    【Step-by-Step Analysis (Chain of Thought)】
-    以下の手順で記事を冷徹に査定してください。
-    1. **形式チェック**: 
-    - これは「記事本体」か？ それとも「一覧画面」「プロフィール」「ログインページ」か？
-    - 記事でない場合は、その時点で Score: 1 とし分析を終了せよ。
-
-    2. **ターゲット層の特定**:
-    - 対象読者は「プロフェッショナル」か「初心者」か？
-    - 「やってみた」「基礎解説」「入門」という単語が含まれる場合、シニア向けではないと判断せよ。
-
-    3. **情報の密度 (Information Density)**:
-    - 記事の中に「具体的なコード」「ベンチマークデータ」「アーキテクチャ図」「未公開のTips」が含まれているか？
-    - 表面的なニュースの要約（コピペ）に過ぎない場合は厳しく減点せよ。
-
-    4. **最終審判**:
-    - 以上の分析を踏まえ、シニアエンジニアが「今日、この5分を割いて読む価値があるか」を自問自答し、スコアを出せ。
-
-    【拒絶命令】
-    - 宣伝目的のプレスリリースは無視せよ。
-    - 「AIで稼ぐ方法」のような低俗なトピックは即座に Score: 1 とせよ。
-    - 具体的実装のない「未来予想図」は不要だ。
-
-    【処理・出力手順】
-    各記事について、以下のJSONフォーマットで出力してください。
-    - summary: 記事の要約（3行以内）
-    - analysis: 各指標のスコア根拠（思考プロセス）
-    - score: 最終的な総合重要度（1-5の5段階評価）
-    - optimized_title: エンジニア向けにリライトされたタイトル
-
-    出力は必ず以下のJSON配列形式のみとし、他のテキストは含めないでください：
-    [
+    以下の記事をITエンジニアの視点で分析してください。
+    【タイトル】: {title}
+    【内容】: {summary}
+    出力形式は以下のJSON形式にしてください
     {{
-        "id": 1,
-        "optimized_title": "...",
-        "summary": "...",
-        "analysis": "...",
-        "score": 5
-    }}
-    ]
-
-    【対象記事リスト】
-    {titles_input}
+        "summary": "3行で要約した文章",
+        "importance": 1から10の数値,
+        "reason": "重要度の理由",
+        "category": "技術カテゴリ"
+    }}"""
+    
+    system_instruction = """
+    あなたは、30年の経験を持つシニアソフトウェアエンジニア兼技術評論家です。
+    提供されるITニュース記事を、以下の基準で厳格に評価してください。
+    採点基準（importance）: 10点満点。
+    1〜3: 一般的な製品発表、宣伝記事、既知の情報のまとめ。
+    4〜6: 特定のライブラリのアップデート、実用的なTips。
+    7〜8: 業界標準を変え得る新技術、重大な脆弱性報告、言語のメジャーアップデート。
+    9〜10: 歴史的なブレイクスルー、全エンジニアが知るべきパラダイムシフト。
+    出力形式: 必ず純粋なJSON形式のみで回答してください。余計な挨拶や解説は一切不要です。
     """
 
     try:
-        # Geminiクライアントを初期化してAPIリクエストを送信
         client = genai.Client(api_key=GEMINI_API_KEY)
-        logger.info(f"Gemini APIに {len(items)} 件のリクエストを送信中...")
-
-        # APIからのレスポンスを受信
         response = client.models.generate_content(
             model=model_id,
             contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=TEMPERATURE)
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json", 
+                temperature=TEMPERATURE)
         )
-
-        logger.info("Gemini APIからのレスポンスを受信しました。")
-        
-        #JSONとしてパース
-        results = json.loads(response.text)
-        # 結果を元のアイテムにマージ
-        for i, item in enumerate(items):
-            # IDで紐付け（Geminiの出力順が正しい前提だが、念のためIDチェック）
-            analysis_data = results[i] if i < len(results) else {}
-            item['optimized_title'] = analysis_data.get('optimized_title', item['title'])
-            item['summary'] = analysis_data.get('summary', '分析失敗')
-            item['analysis'] = analysis_data.get('analysis', '')
-            item['score'] = analysis_data.get('score', 0)
-            
-        return items
-
+        raw_text = response.text # Gemini APIからの生のテキストレスポンス
+        clean_text = re.search(r'\{.*\}', raw_text, re.DOTALL).group(0) # 最初のJSONオブジェクトを抽出
+        clean_text = json.loads(clean_text) # JSON文字列を辞書に変換
+        return clean_text
     except Exception as e:
-        logger.error(f"Gemini一括処理で例外発生: {e}", exc_info=True)
-        print(f"⚠️ Gemini一括処理エラー: {e}")
-        for item in items:
-            item['optimized_title'] = item['title']
-            item['summary'] = "要約を生成できませんでした"
-        return items
+        logger.error(f"Gemini APIへのリクエストに失敗しました: {e}")
+        return None
 
-
-# ========================
-# 💾 CSV操作関数
-# ========================
-def save_and_clean_csv(new_data, filename=CSV_FILENAME, keep_days=CSV_KEEP_DAYS):
-    """
-    新しいニュースデータをCSVに追加し、古いデータを削除
-    
-    Args:
-        new_data (list): 追加する辞書のリスト
-        filename (str): CSVファイルパス
-        keep_days (int): 保持する日数
-    """
-    if not new_data:
-        print("⚠️ 保存するデータがないため、CSV更新をスキップします。")
-        return
-    
+#──────────────────────────────────────────
+#6. CSVファイルへの保存と重複管理
+#──────────────────────────────────────────
+def save_article_to_csv(title: str, link: str, analysis: dict, CSV_FILENAME: str, CSV_KEEP_DAYS: int) -> None:
+    """記事データを CSV に追記し、古いデータを削除する"""
     try:
-        # 新しいデータをDataFrameに変換
-        new_df = pd.DataFrame(new_data)
-        # 【ここでノイズ除去】日付変換などの重い処理の前に、行数を減らしておく
-        # is_noise_urlがTrueを返すものを除去
-        new_df = new_df[~new_df['url'].apply(is_noise_url)].copy()
-        new_df['date'] = pd.to_datetime(new_df['date'], errors='coerce')
-        
-        # 列名をマッピング
-        column_mapping = {
-            "date": "取得日",
-            "site": "サイト名",
-            "optimized_title": "記事タイトル",
-            "url": "URL",
-            "summary": "要約"
+        new_row = {
+            "取得日": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "サイト名": "Hacker News",
+            "記事タイトル": title,
+            "URL": link,
+            "要約": analysis.get("summary", ""),
+            "reason": analysis.get("reason", ""),
         }
-        new_df = new_df.rename(columns=column_mapping)
-        new_df = new_df[CSV_COLUMNS]
-        
-        # 既存CSVと統合
-        if os.path.exists(filename):
-            old_df = pd.read_csv(filename)
-            # 既存の「取得日」も念のため日付型にしておく
-            old_df["取得日"] = pd.to_datetime(old_df["取得日"], errors='coerce')
-            combined_df = pd.concat([old_df, new_df], ignore_index=True)
+
+        #ファイルが存在するかチェック
+        if os.path.exists(CSV_FILENAME):
+            df = pd.read_csv(CSV_FILENAME) #データ読み込み
+            #型変換と30日以内のデータ削除
+            df["取得日"] = pd.to_datetime(df["取得日"], errors="coerce")
+            df = df.dropna(subset=["取得日"])
+            limit_date = datetime.now() - timedelta(days=CSV_KEEP_DAYS)
+            df = df[df["取得日"] > limit_date]
         else:
-            combined_df = new_df
-        #print(f"DEBUG: 合体直後の件数: {len(combined_df)}") # ←追加
-        
-        # データ掃除：日付を正規化、古いデータを削除
-        combined_df["取得日"] = pd.to_datetime(combined_df["取得日"], errors='coerce')
-        combined_df = combined_df.dropna(subset=["取得日"])
-        limit_date = datetime.now() - timedelta(days=keep_days)
-        clean_df = combined_df[combined_df["取得日"] > limit_date]
-        
-        # 重複削除（URLベース）
-        clean_df = clean_df.drop_duplicates(subset=["URL"], keep='first')
+            df = pd.DataFrame()
 
-        # 保存
-        clean_df.to_csv(filename, index=False, encoding="utf-8-sig")
+        #新しい記事の追加
+        new_df = pd.DataFrame([new_row])
+        df = pd.concat([df, new_df], ignore_index=True)
+        #重複削除
+        df = df.drop_duplicates(subset=["URL"], keep="first")
+        #上書き保存
+        df.to_csv(CSV_FILENAME, index=False, encoding="utf-8-sig")
+
         print(f"📊 CSV更新完了: 現在 {len(clean_df)} 件の記事を保存中")
-        logger.info(f"CSV保存完了: {len(clean_df)} 件")
-        
+        logger.info(f"CSV 保存完了: 現在 {len(df)} 件")
     except Exception as e:
-        logger.error(f"CSV操作中にエラーが発生しました: {e}", exc_info=True)
-        print(f"❌ CSV操作中にエラーが発生しました: {e}")
+        logger.error(f"CSV への保存に失敗しました: {e}")
 
+# -──────────────────────────────────────────
+# 7.メール本文の作成
+# -──────────────────────────────────────────
+def build_email_body(articles: list[dict]) -> str:
+    """重要記事リストからメール本文を組み立てて返す"""
+    lines = [
+        f"本日の重要ITニュース（重要度 {IMPORTANCE_THRESHOLD} 以上）",
+        f"対象記事数: {len(articles)} 件",
+        "=" * 60,
+    ]
+    for i, a in enumerate(articles, 1):
+        lines += [
+            f"\n【{i}】{a['title']}",
+            f"  URL      : {a['link']}",
+            f"  重要度   : {a['importance']} / 10",
+            f"  要約     :\n{a['summary']}",
+            "-" * 60,
+        ]
+    return "\n".join(lines)
 
-# ========================
-# 📰 ニュース取得関数
-# ========================
-def fetch_news_items(driver, sources=NEWS_SOURCES, max_per_source=MAX_ARTICLES_PER_SOURCE):
-    """
-    複数のソースからニュース記事を取得
-    
-    Args:
-        driver: Seleniumドライバー
-        sources (list): Webソースのリスト
-        max_per_source (int): 各ソースから取得する最大記事数
-    
-    Returns:
-        list: 取得したニュース記事の辞書リスト
-    """
-    news_items = []
-    
-    for source in sources:
-        print(f"🌐 {source['name']} をスキャン中...")
-        logger.info(f"{source['name']} から記事を取得中...")
-        
-        try:
-            driver.get(source['url'])
-            wait = WebDriverWait(driver, DRIVER_TIMEOUT)
-            wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "a")))
-            
-            elements = driver.find_elements(By.TAG_NAME, "a")
-            count = 0
-            
-            for element in elements:
-                title = element.text.strip()
-                url = element.get_attribute("href")
-                
-                # 無効な記事を除外
-                if not title or len(title) < 10:
-                    continue
-                if not url or not url.startswith("http"):
-                    continue
-                
-                news_items.append({
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "site": source['name'],
-                    "title": title,
-                    "url": url
-                })
-                count += 1
-                
-                if count >= max_per_source:
-                    break
-                    
-        except Exception as e:
-            logger.warning(f"{source['name']} の取得中にエラー: {e}")
-            print(f"⚠️ {source['name']} の取得中にエラー: {e}")
-    
-    return news_items
+# -──────────────────────────────────────────
+# 8.重要記事のメール送信
+# -──────────────────────────────────────────
+def send_important_articles(articles: list[dict]) -> None:
+    """重要度の高い記事をまとめてメールで送信する"""
+    if not articles:
+        logger.info("重要記事なし。メールは送信しません。")
+        return
 
+    subject = f"【ITニュース】重要記事 {len(articles)} 件 ({datetime.now().strftime('%Y-%m-%d')})"
+    body = build_email_body(articles)
 
-# ========================
-# 📧 メール本文構築関数
-# ========================
-def build_mail_content(news_items):
-    """
-    ニュース記事からメール本文を構築
-    
-    Args:
-        news_items (list): 要約済みニュース記事の辞書リスト
-    
-    Returns:
-        tuple: (件名, 本文)
-    """
-    subject = f"ITニュース要約 ({datetime.now().strftime('%m/%d')})"
-    body = f"🚀 【最強PC】ITニュース配信 ({datetime.now().strftime('%Y/%m/%d %H:%M')})\n"
-    body += EMAIL_HEADER_SEPARATOR + "\n\n"
-    
-    if not news_items:
-        body += "現在主要なニュースはございません。\n"
-    else:
-        for item in news_items:
-            body += f"🔹 {item['optimized_title']}\n"
-            body += f"   {item['summary']}\n"
-            body += f"   🔗 {item['url']}\n\n"
-    
-    body += EMAIL_ITEM_SEPARATOR + "\n" + MAIL_SIGNATURE
-    
-    return subject, body
-
-
-# ========================
-# 🚀 メイン処理
-# ========================
-def main():
-    """メイン処理を実行"""
-    driver = create_chrome_driver()
-    
     try:
-        logger.info("=== ニュース収集処理開始 ===")
-        
-        # 1. ニュース取得
-        news_items = fetch_news_items(driver)
-        news_items = news_items[:MAX_TOTAL_ARTICLES]
-        logger.info(f"{len(news_items)} 件のニュース記事を取得")
-        
-        # 2. 要約・リライト
-        summarized_news = process_news_batch(news_items)
-        logger.info(f"{len(summarized_news)} 件のニュース要約完了")
-        
-        # 3. メール本文構築
-        subject, body = build_mail_content(summarized_news)
-        
-        # 4. CSV保存
-        if summarized_news:
-            save_and_clean_csv(summarized_news)
-        
-        # 5. メール送信
         send_gmail(subject=subject, body=body)
-        print("✅ 処理が正常に完了しました。")
-        logger.info("メール送信完了")
-        
+        logger.info(f"メール送信完了: {len(articles)} 件の重要記事")
     except Exception as e:
-        logger.critical(f"システムが異常終了しました: {e}", exc_info=True)
-        print(f"❌ システムエラー: {e}")
-        
-    finally:
-        driver.quit()
-        logger.info("=== ニュース収集処理終了 ===")
+        logger.error(f"メール送信に失敗しました: {e}")
 
+#──────────────────────────────────────────
+# . 記事のループ処理
+#──────────────────────────────────────────
+def process_entries(entries: list, processed_ids: list)->tuple[list, list]:
+    important_articles = []
+
+    for entry in entries:
+        #記事の情報を取得
+        title = entry.get('title', '無題')
+        link = entry.get('link', '#')
+        summary = entry.get('summary', entry.get('description', '本文なし'))
+        guid = entry.get('id', entry.link)  # guid がない場合は link を代わりに使用
+
+        #重複チェック（guid が過去データにないか）
+        if guid in processed_ids:
+            continue # すでに処理済みの記事はスキップ
+        try:
+            analysis = analyze_article_with_gemini(title, summary)
+            if analysis is None:
+                continue # APIエラーなどで分析できなかった記事はスキップ
+
+                importance_score = analysis.get("importance", 0)
+                save_article_to_csv(title, link, analysis, CSV_FILENAME, CSV_KEEP_DAYS)
+                processed_ids.append(guid)
+
+                if importance_score >= IMPORTANCE_THRESHOLD:
+                    print(f"🔥 重要記事発見！スコア: {importance_score}")
+                    # jsonファイル保存準備
+                    important_articles.append= ({
+                        "title":      title,
+                        "link":       link,
+                        "importance": importance,
+                        "reason":     analysis.get("reason", ""),
+                        "summary":    analysis.get("summary", ""),
+                    })
+        except Exception as e:
+            logger.error(f"記事解析エラー: {title}, エラー: {e}")
+        
+    return processed_ids, important_articles
+
+# -──────────────────────────────────────────
+# 9.メイン処理
+# -──────────────────────────────────────────
+def main():
+    entries = fetch_feed(URL)
+    processed_ids = load_processed_ids(json_file_path)
+    updated_ids, important_articles = process_entries(entries, processed_ids)
+    save_processed_ids(updated_ids, json_file_path)
+    send_important_articles(important_articles)
+
+logger = setup_logger()
 
 if __name__ == "__main__":
     main()
