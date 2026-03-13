@@ -2,17 +2,19 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+# パスの設定
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "data" / "project_database.db"
 
+# データベース接続を取得する関数
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
     return conn
 
 # データベースにテーブルが存在しない場合は作成する
 def create_table():
-    conn = get_connection()
-    cursor = conn.cursor()
+    conn = get_connection() #DBに接続
+    cursor = conn.cursor() #カーソルを作成
 
     # articlesテーブルを作成（存在しない場合のみ）
     cursor.execute("""
@@ -21,8 +23,7 @@ def create_table():
         title TEXT,
         url TEXT UNIQUE,
         source TEXT,
-        published_at TEXT,
-        fetched_at TEXT
+        published_at TEXT
     )
     """)
     conn.commit()
@@ -30,8 +31,8 @@ def create_table():
 
 #記事をDBに保存する
 def insert_article(article):
-    conn = get_connection()
-    cursor = conn.cursor()
+    conn = get_connection() #DBに接続
+    cursor = conn.cursor() #カーソルを作成
 
     # URLの重複を避けるため、INSERT OR IGNOREを使用して記事を挿入
     cursor.execute("""
@@ -44,6 +45,35 @@ def insert_article(article):
         article.source,
         article.published_at
     ))
-
     conn.commit()
     conn.close()
+
+
+def get_latest_articles(limit=30):
+    """
+    最新の記事を指定件数取得し、辞書のリストで返す
+    """
+    conn = get_connection()
+    # カラム名でデータにアクセスできるように設定
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT title, url, source, published_at 
+            FROM articles 
+            ORDER BY published_at DESC 
+            LIMIT ?
+        """, (limit,))
+        
+        #結果の取得
+        rows = cursor.fetchall()
+        # sqlite3.RowオブジェクトをPythonの辞書に変換
+        articles = [dict(row) for row in rows]
+        return articles
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return []
+
+    finally:
+        conn.close()

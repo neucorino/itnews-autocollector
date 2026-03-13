@@ -5,6 +5,8 @@ def fetch_rss(url, source_name):
 
     feed = feedparser.parse(url)
     articles = []
+    if feed.bozo:
+        raise Exception("RSSの形式が壊れています")
 
     for entry in feed.entries:
 
