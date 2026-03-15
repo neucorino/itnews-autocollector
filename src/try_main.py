@@ -1,5 +1,9 @@
 from rss_fetcher import fetch_rss
 from db import create_table, insert_article, get_latest_articles
+import config
+from logger import setup_logger
+
+logger = setup_logger()
 
 RSS_LIST = [
     ("https://news.ycombinator.com/rss", "Hacker News")

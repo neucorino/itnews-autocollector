@@ -1,14 +1,13 @@
 import sqlite3
 from datetime import datetime
-from pathlib import Path
+import config
+import logging
 
-# パスの設定
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "data" / "project_database.db"
+logger = logging.getLogger(__name__)
 
 # データベース接続を取得する関数
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(config.DB_PATH)
     return conn
 
 # データベースにテーブルが存在しない場合は作成する
@@ -47,6 +46,7 @@ def insert_article(article):
     ))
     conn.commit()
     conn.close()
+    logger.info(f"{cursor.rowcount} 件DB保存")
 
 
 def get_latest_articles(limit=30):
