@@ -22,7 +22,11 @@ def create_table():
         title TEXT,
         url TEXT UNIQUE,
         source TEXT,
-        published_at TEXT
+        summary TEXT,
+        published_at TEXT,
+        importance INTEGER,
+        reason TEXT,       
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
     conn.commit()
@@ -35,14 +39,16 @@ def insert_article(article):
 
     # URLの重複を避けるため、INSERT OR IGNOREを使用して記事を挿入
     cursor.execute("""
-    INSERT OR IGNORE INTO articles 
-    (title, url, source, published_at)
-    VALUES (?, ?, ?, ?)
+    INSERT OR IGNORE INTO articles(title, url, source, summary, published_at, importance, reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (
         article.title,
         article.url,
         article.source,
-        article.published_at
+        article.summary,
+        article.published_at,
+        article.importance,
+        article.reason
     ))
     conn.commit()
     conn.close()
@@ -60,7 +66,7 @@ def get_latest_articles(limit=30):
 
     try:
         cursor.execute("""
-            SELECT title, url, source, published_at 
+            SELECT title, url, source, summary, published_at, importance, reason
             FROM articles 
             ORDER BY published_at DESC 
             LIMIT ?

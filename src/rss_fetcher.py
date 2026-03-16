@@ -21,7 +21,9 @@ def fetch_rss(url, source_name):
             title=entry.title,
             url=entry.link,
             source=source_name,
-            published_at=entry.get("published", "")
+            summary=entry.get("summary", ""),
+            published_at=entry.get("published", ""),
+
         )
 
         articles.append(article)

@@ -6,4 +6,5 @@ class Article:
     title: str
     url: str
     source: str
+    summary: str
     published_at: str
