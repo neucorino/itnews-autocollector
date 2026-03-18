@@ -54,11 +54,8 @@ def insert_article(article):
     conn.close()
     logger.info(f"{cursor.rowcount} 件DB保存")
 
-
+# 最新の記事を指定件数取得し、辞書のリストで返す
 def get_latest_articles(limit=30):
-    """
-    最新の記事を指定件数取得し、辞書のリストで返す
-    """
     conn = get_connection()
     # カラム名でデータにアクセスできるように設定
     conn.row_factory = sqlite3.Row
@@ -83,3 +80,35 @@ def get_latest_articles(limit=30):
 
     finally:
         conn.close()
+        logger.info(f"{len(articles)} 件DBから取得")
+
+# 記事の重要度判定
+def get_today_important(conn, min_score=config.IMPORTANCE_THRESHOLD):
+    conn = get_connection() 
+    cursor = conn.cursor()
+
+    # 重要度がmin_score以上の記事を取得
+    logger.info("今日の重要記事の取得開始")
+    cursor.execute("""
+        SELECT * FROM articles
+        WHERE importance >= ?
+        AND DATE(published_at) = DATE('now')
+        ORDER BY importance DESC
+    """, (min_score,))
+
+    return cursor.fetchall()
+
+def get_weekly_important(conn, min_score=config.IMPORTANCE_THRESHOLD):
+    conn = get_connection() 
+    cursor = conn.cursor()
+
+    # 重要度がmin_score以上の記事を取得
+    logger.info("過去7日間の重要記事の取得開始")
+    cursor.execute("""
+        SELECT * FROM articles
+        WHERE importance >= ?
+        AND DATE(published_at) >= DATE('now', '-7 days')
+        ORDER BY importance DESC
+    """, (min_score,))
+
+    return cursor.fetchall()
