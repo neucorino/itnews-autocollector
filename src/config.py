@@ -18,7 +18,7 @@ RSS_LIST = [
 FETCH_LIMIT = 30
 
 # ロギングの設定
-LOG_FILE = "it_news_system.log"
+LOG_FILE = BASE_DIR / "logs" / "it_news_system.log"
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
 

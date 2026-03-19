@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 def get_connection():
     conn = sqlite3.connect(config.DB_PATH)
     return conn
+    logger.info("DB接続を取得")
 
 # データベースにテーブルが存在しない場合は作成する
 def create_table():
@@ -29,10 +30,11 @@ def create_table():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+    logger.info("DBテーブルの作成を確認")
     conn.commit()
     conn.close()
 
-#記事をDBに保存する
+# 記事をデータベースに挿入する関数
 def insert_article(article):
     conn = get_connection() #DBに接続
     cursor = conn.cursor() #カーソルを作成
@@ -50,9 +52,9 @@ def insert_article(article):
         article.importance,
         article.reason
     ))
+    logger.info(f"{cursor.rowcount} 件DB保存")
     conn.commit()
     conn.close()
-    logger.info(f"{cursor.rowcount} 件DB保存")
 
 # 最新の記事を指定件数取得し、辞書のリストで返す
 def get_latest_articles(limit=30):
@@ -74,16 +76,17 @@ def get_latest_articles(limit=30):
         # sqlite3.RowオブジェクトをPythonの辞書に変換
         articles = [dict(row) for row in rows]
         return articles
+        logger.info(f"{len(articles)} 件DBから取得")
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return []
+        logger.error(f"Database error: {e}")
 
     finally:
         conn.close()
-        logger.info(f"{len(articles)} 件DBから取得")
 
-# 記事の重要度判定
-def get_today_important(conn, min_score=config.IMPORTANCE_THRESHOLD):
+# 記事の重要度判定の条件
+def get_today_important(min_score=config.IMPORTANCE_THRESHOLD):
     conn = get_connection() 
     cursor = conn.cursor()
 
@@ -98,7 +101,7 @@ def get_today_important(conn, min_score=config.IMPORTANCE_THRESHOLD):
 
     return cursor.fetchall()
 
-def get_weekly_important(conn, min_score=config.IMPORTANCE_THRESHOLD):
+def get_weekly_important(min_score=config.IMPORTANCE_THRESHOLD):
     conn = get_connection() 
     cursor = conn.cursor()
 

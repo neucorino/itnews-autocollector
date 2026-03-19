@@ -7,6 +7,7 @@ import json
 # どのモジュールから出たログか識別する
 logger = logging.getLogger(__name__)
 
+#Gemini APIの呼び出しとプロンプトの設定
 def analyze_article_with_gemini(title: str, summary: str) -> dict:
     logger.info("Gemini分析開始")
 
@@ -33,3 +34,24 @@ def analyze_article_with_gemini(title: str, summary: str) -> dict:
     except Exception as e:
         logger.error(f"Gemini APIへのリクエストに失敗しました: {e}")
         return None
+
+
+# Gemini 分析
+def analyze_articles(articles: list) -> list:
+    """記事リストをGeminiで分析し、importance / reason をセットして返す。
+    分析に失敗した記事はスキップする。
+    """
+    analyzed = []
+    for article in articles:
+        result = analyze_article_with_gemini(article.title, article.summary)
+
+        if not result:
+            logger.warning(f"Gemini分析失敗(スキップ): {article.title}")
+            continue
+
+        article.importance = result.get("importance", 0)
+        article.reason     = result.get("reason", "")
+        logger.info(f"Gemini分析完了: {article.title} (重要度: {article.importance})")
+        analyzed.append(article)
+
+    return analyzed
