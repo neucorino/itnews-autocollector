@@ -8,8 +8,10 @@ from service import (
     save_articles,
     get_notification_targets
 )
+from mail_sender import send_daily_email
 import config
 from logger import setup_logger
+
 
 logger = setup_logger()
 
@@ -36,6 +38,9 @@ def main():
     notify_articles = get_notification_targets()
 
     logger.info(f"最終通知件数: {len(notify_articles)}件")
+    
+    # メール送信
+    send_daily_email()
 
 if __name__ == "__main__":
     main()
