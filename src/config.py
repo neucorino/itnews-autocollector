@@ -76,3 +76,12 @@ IMPORTANCE_THRESHOLD = 7
 #メール設定
 FROM_ADDRESS = os.getenv('GMAIL_USER')
 MY_PASSWORD = os.getenv('GMAIL_PASS')
+
+# ニュース取得のルール
+LATEST_NEWS_LIMIT = 30       # 最新ニュース取得件数
+IMPORTANCE_THRESHOLD = 7    # 通知対象にする重要度のしきい値
+RETENTION_DAYS_WEEKLY = 7    # 「週間」とみなす日数
+RETENTION_DAYS_TODAY = 0     # 「今日」とみなす日数（0は今日のみ）
+
+# 通知設定
+MAX_NOTIFICATION_COUNT = 5   # 一度に通知する最大件数

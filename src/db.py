@@ -34,84 +34,70 @@ def create_table():
     conn.commit()
     conn.close()
 
-# 記事をデータベースに挿入する関数
-def insert_article(article):
-    conn = get_connection() #DBに接続
-    cursor = conn.cursor() #カーソルを作成
+# 記事リストに一括でinsertする関数
+def bulk_insert_articles(articles: list):
+    if not articles:
+        return 0
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    # URLの重複を避けるため、INSERT OR IGNOREを使用して記事を挿入
-    cursor.execute("""
-    INSERT OR IGNORE INTO articles(title, url, source, summary, published_at, importance, reason)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        article.title,
-        article.url,
-        article.source,
-        article.summary,
-        article.published_at,
-        article.importance,
-        article.reason
-    ))
-    logger.info(f"{cursor.rowcount} 件DB保存")
-    conn.commit()
-    conn.close()
+    # executemanyに渡すために、オブジェクトのリストをタプルのリストに変換
+    data = [(
+        a.title,
+        a.url,
+        a.source,
+        a.summary,
+        a.published_at,
+        a.importance,
+        a.reason
+    ) for a in articles]
 
-# 最新の記事を指定件数取得し、辞書のリストで返す
-def get_latest_articles(limit=30):
+    try:
+        # 一括実行
+        cursor.executemany("""
+            INSERT OR IGNORE INTO articles (
+                title, url, source, summary, published_at, importance, reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, data)
+        
+        saved_count = cursor.rowcount
+        conn.commit()
+        logger.info(f"{saved_count} 件の新着記事をDBに保存しました")
+        return saved_count
+
+    except sqlite3.Error as e:
+        conn.rollback()
+        logger.error(f"Database error during bulk insert: {e}")
+        raise e # エラーをservice側に伝える
+    finally:
+        conn.close()
+
+
+# 指定した条件で記事を取得する関数
+def fetch_articles(limit=config.LATEST_NEWS_LIMIT, 
+    min_importance=config.IMPORTANCE_THRESHOLD, 
+    days_ago=config.RETENTION_DAYS_WEEKLY
+):
     conn = get_connection()
     # カラム名でデータにアクセスできるように設定
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-
-    try:
-        cursor.execute("""
-            SELECT title, url, source, summary, published_at, importance, reason
-            FROM articles 
-            ORDER BY published_at DESC 
-            LIMIT ?
-        """, (limit,))
+    # フィルタ条件を動的に組み立てる
+    # importanceがmin_importance以上の記事を取得
+    query = "SELECT * FROM articles WHERE importance >= ?"
+    params = [min_importance]
+    # days_agoが指定された場合は、published_atがdays_ago日以内の記事を取得
+    if days_ago is not None:
+        query += " AND DATE(published_at) >= DATE('now', ?)"
+        params.append(f'-{days_ago} days')
         
-        #結果の取得
-        rows = cursor.fetchall()
-        # sqlite3.RowオブジェクトをPythonの辞書に変換
-        articles = [dict(row) for row in rows]
-        return articles
-        logger.info(f"{len(articles)} 件DBから取得")
-    except sqlite3.Error as e:
-        print(f"Database error: {e}")
-        return []
-        logger.error(f"Database error: {e}")
-
+    # 重要度の高い順、公開日時の新しい順で並べ替え、指定した件数だけ取得
+    query += " ORDER BY importance DESC, published_at DESC LIMIT ?"
+    params.append(limit)
+    
+    try:
+        # クエリを実行して記事を取得
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
     finally:
         conn.close()
-
-# 記事の重要度判定の条件
-def get_today_important(min_score=config.IMPORTANCE_THRESHOLD):
-    conn = get_connection() 
-    cursor = conn.cursor()
-
-    # 重要度がmin_score以上の記事を取得
-    logger.info("今日の重要記事の取得開始")
-    cursor.execute("""
-        SELECT * FROM articles
-        WHERE importance >= ?
-        AND DATE(published_at) = DATE('now')
-        ORDER BY importance DESC
-    """, (min_score,))
-
-    return cursor.fetchall()
-
-def get_weekly_important(min_score=config.IMPORTANCE_THRESHOLD):
-    conn = get_connection() 
-    cursor = conn.cursor()
-
-    # 重要度がmin_score以上の記事を取得
-    logger.info("過去7日間の重要記事の取得開始")
-    cursor.execute("""
-        SELECT * FROM articles
-        WHERE importance >= ?
-        AND DATE(published_at) >= DATE('now', '-7 days')
-        ORDER BY importance DESC
-    """, (min_score,))
-
-    return cursor.fetchall()
