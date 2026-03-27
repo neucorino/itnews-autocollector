@@ -5,34 +5,99 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class DatabaseManager:
+    # __init__ 
+    def __init__(self,db_path=config.DB_PATH):
+        # sqlite3はファイルパスを指定して接続します
+        self.conn = sqlite3.connect(db_path)
+        # sqlite3で辞書形式でデータを取れるようにする設定
+        self.conn.row_factory = sqlite3.Row
+        self.create_tables() # インスタンス化した時にテーブルがなければ作る
+    
+    def create_tables(self):
+        """必要なテーブルを作成する（初回のみ）"""
+        cur = self.conn.cursor()
+        # batchesテーブル作成
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS batches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at TIMESTAMP,
+                ended_at TIMESTAMP,
+                status TEXT,
+                new_articles_count INTEGER
+            )
+        """)
+
+        # articlesテーブルを作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                url TEXT UNIQUE,
+                source TEXT,
+                summary TEXT,
+                published_at TEXT
+            )
+        """)
+
+        # article_analysesテーブルを作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS article_analyses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id INTEGER,
+                ai_summary TEXT,
+                importance INTEGER,
+                reason TEXT,
+                category TEXT,
+                analyzed_at TIMESTAMP
+            )
+        """)
+
+        # rankingsテーブルを作成
+        cusor.execute("""
+            CREATE TABLE IF NOT EXISTS rankings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id INTEGER REFERENCES articles(id),
+                analysis_id INTEGER REFERENCES article_analyses(id),
+                rank INTEGER,
+                batch_id INTEGER REFERENCES batches(id),
+                created_at TIMESTAMP
+            )
+        """)
+
+        self.conn.commit()
+
+    # バッチ開始を記録するメソッド（操作）
+    def start_new_batch(self):
+        logger.info("バッチを開始します...")
+        cur = self.conn.cursor()
+        # sqlite3では %s ではなく ? を使います（重要！）
+        sql = "INSERT INTO batches (started_at, status) VALUES (?, ?)"
+        cur.execute(sql, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
+        # 最後に挿入されたIDを取得
+        batch_id = cur.lastrowid
+        
+        self.conn.commit()
+        return batch_id
+
+    # バッチ終了を記録するメソッド（操作）
+    def finish_batch(self, batch_id, status,count):
+        """バッチの結果を更新する"""
+        cur = self.conn.cursor()
+        sql = """
+            UPDATE batches 
+            SET ended_at = ?, status = ?, new_articles_count = ? 
+            WHERE id = ?
+        """
+        cur.execute(sql, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
+        self.conn.commit()
+        logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
+
 # データベース接続を取得する関数
 def get_connection():
     conn = sqlite3.connect(config.DB_PATH)
     return conn
     logger.info("DB接続を取得")
-
-# データベースにテーブルが存在しない場合は作成する
-def create_table():
-    conn = get_connection() #DBに接続
-    cursor = conn.cursor() #カーソルを作成
-
-    # articlesテーブルを作成（存在しない場合のみ）
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS articles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        url TEXT UNIQUE,
-        source TEXT,
-        summary TEXT,
-        published_at TEXT,
-        importance INTEGER,
-        reason TEXT,       
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-    logger.info("DBテーブルの作成を確認")
-    conn.commit()
-    conn.close()
 
 # 記事リストに一括でinsertする関数
 def bulk_insert_articles(articles: list):
