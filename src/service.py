@@ -4,16 +4,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# DB保存
-def save_articles(articles: list) -> None:
-    """記事リストをDB保存の専門家（db.py）に丸投げする"""
-    try:
-        # まとめてドカンと保存！
-        db.bulk_insert_articles(articles)
-    except Exception as e:
-        logger.error(f"保存に失敗しました。通知処理を中断します: {e}")
-        # ここで処理を止めるか、リトライするかの判断ができる
-
 # メール通知対象の記事をDBから取得
 def get_notification_targets(target_count=config.MAX_NOTIFICATION_COUNT) -> list:
     # 1. まずは「今日」の重要な記事を狙い撃ちで取得

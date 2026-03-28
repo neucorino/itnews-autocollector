@@ -8,28 +8,33 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     # __init__ 
     def __init__(self,db_path=config.DB_PATH):
-        # sqlite3はファイルパスを指定して接続します
+        # sqlite3はファイルパスを指定して接続
         self.conn = sqlite3.connect(db_path)
         # sqlite3で辞書形式でデータを取れるようにする設定
         self.conn.row_factory = sqlite3.Row
+        logger.info(f"DB接続を開始: {db_path}")
         self.create_tables() # インスタンス化した時にテーブルがなければ作る
     
     def create_tables(self):
-        """必要なテーブルを作成する（初回のみ）"""
+        # テーブルがなければ作成する
         cur = self.conn.cursor()
+
+        # SQLiteで外部キー制約を有効にする魔法のコマンド
+        cur.execute("PRAGMA foreign_keys = ON;")
+
         # batchesテーブル作成
         cur.execute("""
             CREATE TABLE IF NOT EXISTS batches (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                started_at TIMESTAMP,
-                ended_at TIMESTAMP,
+                started_at TEXT,
+                ended_at TEXT,
                 status TEXT,
                 new_articles_count INTEGER
             )
         """)
 
         # articlesテーブルを作成
-        cursor.execute("""
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS articles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT,
@@ -41,27 +46,27 @@ class DatabaseManager:
         """)
 
         # article_analysesテーブルを作成
-        cursor.execute("""
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS article_analyses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                article_id INTEGER,
+                FOREIGN KEY(article_id) REFERENCES articles(id),
                 ai_summary TEXT,
                 importance INTEGER,
                 reason TEXT,
                 category TEXT,
-                analyzed_at TIMESTAMP
+                analyzed_at TEXT
             )
         """)
 
         # rankingsテーブルを作成
-        cusor.execute("""
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS rankings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                article_id INTEGER REFERENCES articles(id),
-                analysis_id INTEGER REFERENCES article_analyses(id),
+                FOREIGN KEY(article_id) REFERENCES articles(id),
+                FOREIGN KEY(analysis_id) REFERENCES article_analyses(id),
                 rank INTEGER,
-                batch_id INTEGER REFERENCES batches(id),
-                created_at TIMESTAMP
+                FOREIGN KEY(batch_id) REFERENCES batches(id),
+                created_at TEXT
             )
         """)
 
@@ -92,50 +97,6 @@ class DatabaseManager:
         cur.execute(sql, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
         self.conn.commit()
         logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
-
-# データベース接続を取得する関数
-def get_connection():
-    conn = sqlite3.connect(config.DB_PATH)
-    return conn
-    logger.info("DB接続を取得")
-
-# 記事リストに一括でinsertする関数
-def bulk_insert_articles(articles: list):
-    if not articles:
-        return 0
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # executemanyに渡すために、オブジェクトのリストをタプルのリストに変換
-    data = [(
-        a.title,
-        a.url,
-        a.source,
-        a.summary,
-        a.published_at,
-        a.importance,
-        a.reason
-    ) for a in articles]
-
-    try:
-        # 一括実行
-        cursor.executemany("""
-            INSERT OR IGNORE INTO articles (
-                title, url, source, summary, published_at, importance, reason
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, data)
-        
-        saved_count = cursor.rowcount
-        conn.commit()
-        logger.info(f"{saved_count} 件の新着記事をDBに保存しました")
-        return saved_count
-
-    except sqlite3.Error as e:
-        conn.rollback()
-        logger.error(f"Database error during bulk insert: {e}")
-        raise e # エラーをservice側に伝える
-    finally:
-        conn.close()
 
 
 # 指定した条件で記事を取得する関数
