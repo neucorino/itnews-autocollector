@@ -37,11 +37,11 @@ def analyze_article_with_gemini(title: str, summary: str) -> dict:
 
 
 # Gemini 分析
-def analyze_articles(articles: list) -> list:
-    """記事リストをGeminiで分析し、importance / reason をセットして返す。
+def analyze_articles(articles: list, batch_id: int) -> list:
+    """記事リストをGeminiで分析し、解析結果の辞書リストを返す。
     分析に失敗した記事はスキップする。
     """
-    analyzed = []
+    analyses_list = []
     for article in articles:
         result = analyze_article_with_gemini(article.title, article.summary)
 
@@ -49,9 +49,15 @@ def analyze_articles(articles: list) -> list:
             logger.warning(f"Gemini分析失敗(スキップ): {article.title}")
             continue
 
-        article.importance = result.get("importance", 0)
-        article.reason     = result.get("reason", "")
-        logger.info(f"Gemini分析完了: {article.title} (重要度: {article.importance})")
-        analyzed.append(article)
+        analyses_list.append({
+            "article_id":  article.id,
+            "batch_id":    batch_id,
+            "ai_summary":  result.get("ai_summary", ""),
+            "importance":  result.get("importance", 0),
+            "reason":      result.get("reason", ""),
+            "category":    result.get("category", ""),
+            "analyzed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        logger.info(f"Gemini分析完了: {article.title} (重要度: {result.get('importance', 0)})")
 
-    return analyzed
+    return analyses_list

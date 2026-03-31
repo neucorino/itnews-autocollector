@@ -1,12 +1,13 @@
 import config
 import db
+import gemini_analyzer
 import logging
 
 logger = logging.getLogger(__name__)
 
 # RSSからデータを受け取ってリストを作る
 def process_new_articles(rss_data):
-    db = DatabaseManager()
+    db_manager_maneger = DatabaseManager()
     
     # データを (値, 値, ...) のタプルのリストに変換する
     data_to_save = [
@@ -15,7 +16,14 @@ def process_new_articles(rss_data):
     ]
     
     # 一括保存！
-    db.save_articles(data_to_save)
+    db_manager.bulk_insert_articles(data_to_save)
+
+def process_new_analyses(articles,batch_id):
+    # Geminiで分析して、分析結果を辞書で受け取る
+    analyzed_articles = gemini_analyzer.analyze_articles(articles, batch_id)
+    
+    # 分析結果をDBに保存する
+    db_manager.bulk_insert_article_analyses(analyzed_articles)
 
 # メール通知対象の記事をDBから取得
 def get_notification_targets(target_count=config.MAX_NOTIFICATION_COUNT) -> list:
