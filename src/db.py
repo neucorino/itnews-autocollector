@@ -5,6 +5,69 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+CREATE_BATCHES = """
+    CREATE TABLE IF NOT EXISTS batches (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at          TEXT,
+        ended_at            TEXT,
+        status              TEXT,
+        new_articles_count  INTEGER
+    )
+"""
+
+CREATE_ARTICLES = """
+    CREATE TABLE IF NOT EXISTS articles (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        title        TEXT,
+        url          TEXT UNIQUE,
+        source       TEXT,
+        summary      TEXT,
+        published_at TEXT
+    )
+"""
+
+CREATE_ARTICLE_ANALYSES = """
+    CREATE TABLE IF NOT EXISTS article_analyses (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id  INTEGER NOT NULL,
+        batch_id    INTEGER NOT NULL, 
+        ai_summary  TEXT,
+        importance  INTEGER,
+        reason      TEXT,
+        category    TEXT,
+        analyzed_at TEXT,
+        FOREIGN KEY (article_id) REFERENCES articles(id)
+        FOREIGN KEY (batch_id)   REFERENCES batches(id)
+    )
+"""
+
+CREATE_RANKINGS = """
+    CREATE TABLE IF NOT EXISTS rankings (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id  INTEGER NOT NULL,
+        analysis_id INTEGER NOT NULL,
+        batch_id    INTEGER NOT NULL,
+        rank        INTEGER,
+        created_at  TEXT,
+        FOREIGN KEY (article_id)  REFERENCES articles(id),
+        FOREIGN KEY (analysis_id) REFERENCES article_analyses(id),
+        FOREIGN KEY (batch_id)    REFERENCES batches(id)
+    )
+"""
+
+INSERT_ARTICLE = """
+    INSERT OR IGNORE INTO articles (title, url, source, summary, published_at)
+    VALUES (?, ?, ?, ?, ?)
+"""
+
+INSERT_ANALYSES = """
+    INSERT OR IGNORE INTO article_analyses (
+        article_id, batch_id, ai_summary, 
+        importance, reason, category, analyzed_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+
 class DatabaseManager:
     # __init__ 
     def __init__(self,db_path=config.DB_PATH):
@@ -15,62 +78,23 @@ class DatabaseManager:
         logger.info(f"DB接続を開始: {db_path}")
         self.create_tables() # インスタンス化した時にテーブルがなければ作る
     
-    def create_tables(self):
-        # テーブルがなければ作成する
-        cur = self.conn.cursor()
-
-        # SQLiteで外部キー制約を有効にする魔法のコマンド
-        cur.execute("PRAGMA foreign_keys = ON;")
-
-        # batchesテーブル作成
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS batches (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                started_at TEXT,
-                ended_at TEXT,
-                status TEXT,
-                new_articles_count INTEGER
-            )
-        """)
-
-        # articlesテーブルを作成
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS articles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT,
-                url TEXT UNIQUE,
-                source TEXT,
-                summary TEXT,
-                published_at TEXT
-            )
-        """)
-
-        # article_analysesテーブルを作成
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS article_analyses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                FOREIGN KEY(article_id) REFERENCES articles(id),
-                ai_summary TEXT,
-                importance INTEGER,
-                reason TEXT,
-                category TEXT,
-                analyzed_at TEXT
-            )
-        """)
-
-        # rankingsテーブルを作成
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS rankings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                FOREIGN KEY(article_id) REFERENCES articles(id),
-                FOREIGN KEY(analysis_id) REFERENCES article_analyses(id),
-                rank INTEGER,
-                FOREIGN KEY(batch_id) REFERENCES batches(id),
-                created_at TEXT
-            )
-        """)
-
-        self.conn.commit()
+    def create_tables(self) -> None:
+        """テーブルが存在しない場合に作成する。"""
+        with self.conn:
+            for ddl in (CREATE_BATCHES, CREATE_ARTICLES, CREATE_ARTICLE_ANALYSES, CREATE_RANKINGS):
+                self.conn.execute(ddl)
+    
+    # 記事リストに一括でinsertする関数
+    def bulk_insert_articles(self,articles_list):
+        """記事リストを一括でinsertする。URLが重複する場合はスキップ。"""
+        with self.conn:
+            self.conn.executemany(INSERT_ARTICLE, articles_list)
+        logger.info(f"{len(articles_list)}件の記事を一括処理しました。")
+    
+    def bulk_insert_analyses(self, analyses_list):
+    with self.conn:
+        self.conn.executemany(INSERT_ANALYSES, analyses_list)
+    logger.info(f"{len(analyses_list)}件の解析結果を一括処理しました。")
 
     # バッチ開始を記録するメソッド（操作）
     def start_new_batch(self):
@@ -97,6 +121,8 @@ class DatabaseManager:
         cur.execute(sql, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
         self.conn.commit()
         logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
+
+
 
 
 # 指定した条件で記事を取得する関数

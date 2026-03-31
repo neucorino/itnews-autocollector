@@ -4,6 +4,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# RSSからデータを受け取ってリストを作る
+def process_new_articles(rss_data):
+    db = DatabaseManager()
+    
+    # データを (値, 値, ...) のタプルのリストに変換する
+    data_to_save = [
+        (item.title, item.url, item.source, item.summary, item.published_at)
+        for item in rss_data
+    ]
+    
+    # 一括保存！
+    db.save_articles(data_to_save)
+
 # メール通知対象の記事をDBから取得
 def get_notification_targets(target_count=config.MAX_NOTIFICATION_COUNT) -> list:
     # 1. まずは「今日」の重要な記事を狙い撃ちで取得
