@@ -1,11 +1,12 @@
 from rss_fetcher import fetch_rss
-from db import create_table
+from db import DatabaseManager
 from gemini_analyzer import (
     analyze_article_with_gemini,
     analyze_articles
 )
 from service import (
-    save_articles,
+    process_new_articles,
+    process_new_analyses,
     get_notification_targets
 )
 from mail_sender import send_daily_email
@@ -21,18 +22,18 @@ RSS_LIST = [
 
 def main():
 
-    create_table()
+    db_manager = DatabaseManager()
+    db_manager.create_tables()
+    batch_id = db_manager.start_new_batch()
 
     for rss_url, source in RSS_LIST:
 
         # RSSから記事を取得
         articles = fetch_rss(rss_url, source)
 
-        # 取得した記事をGeminiで分析
-        analyzed_articles = analyze_articles(articles)
-
         # 重要な記事をDBに保存
-        save_articles(analyzed_articles)
+        save_articles= process_new_articles(articles)
+        save_analyses = process_new_analyses(articles, batch_id)
 
     # 通知対象決定
     notify_articles = get_notification_targets()
