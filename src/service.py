@@ -5,10 +5,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+db_manager = DatabaseManager()
+
 # RSSからデータを受け取ってリストを作る
 def process_new_articles(rss_data):
-    db_manager_maneger = DatabaseManager()
-    
     # データを (値, 値, ...) のタプルのリストに変換する
     data_to_save = [
         (item.title, item.url, item.source, item.summary, item.published_at)

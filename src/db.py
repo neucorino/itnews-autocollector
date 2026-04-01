@@ -68,6 +68,21 @@ INSERT_ANALYSES = """
     VALUES (?, ?, ?, ?, ?, ?, ?)
 """
 
+INSERT_RANKING = """
+    INSERT INTO rankings (article_id, analysis_id, batch_id, rank, created_at)
+    VALUES (?, ?, ?, ?, ?)
+"""
+
+START_NEW_BATCH = """
+    INSERT INTO batches (started_at, status) VALUES (?, ?)
+"""
+
+FINISH_BATCH = """
+    UPDATE batches 
+    SET ended_at = ?, status = ?, new_articles_count = ? 
+    WHERE id = ?
+"""
+
 class DatabaseManager:
     # __init__ 
     def __init__(self,db_path=config.DB_PATH):
@@ -92,64 +107,58 @@ class DatabaseManager:
         logger.info(f"{len(articles_list)}件の記事を一括処理しました。")
     
     def bulk_insert_analyses(self, analyses_list):
-    with self.conn:
-        self.conn.executemany(INSERT_ANALYSES, analyses_list)
-    logger.info(f"{len(analyses_list)}件の解析結果を一括処理しました。")
+        with self.conn:
+            self.conn.executemany(INSERT_ANALYSES, analyses_list)
+        logger.info(f"{len(analyses_list)}件の解析結果を一括処理しました。")
+    
+    def bulk_insert_rankings(self, rankings_list):
+        with self.conn:
+            self.conn.executemany(INSERT_RANKING, rankings_list)
+        logger.info(f"{len(rankings_list)}件のランキングを一括処理しました。")
 
     # バッチ開始を記録するメソッド（操作）
     def start_new_batch(self):
         logger.info("バッチを開始します...")
-        cur = self.conn.cursor()
-        # sqlite3では %s ではなく ? を使います（重要！）
-        sql = "INSERT INTO batches (started_at, status) VALUES (?, ?)"
-        cur.execute(sql, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
-        # 最後に挿入されたIDを取得
-        batch_id = cur.lastrowid
-        
-        self.conn.commit()
+        with self.conn:
+            cur = self.conn.cursor()
+            cur.execute(START_NEW_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
+            # 最後に挿入されたIDを取得
+            batch_id = cur.lastrowid
         return batch_id
 
     # バッチ終了を記録するメソッド（操作）
     def finish_batch(self, batch_id, status,count):
         """バッチの結果を更新する"""
-        cur = self.conn.cursor()
-        sql = """
-            UPDATE batches 
-            SET ended_at = ?, status = ?, new_articles_count = ? 
-            WHERE id = ?
-        """
-        cur.execute(sql, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
-        self.conn.commit()
+        with self.conn:
+            self.conn.execute(FINISH_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
         logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
 
 
-
-
-# 指定した条件で記事を取得する関数
-def fetch_articles(limit=config.LATEST_NEWS_LIMIT, 
-    min_importance=config.IMPORTANCE_THRESHOLD, 
-    days_ago=config.RETENTION_DAYS_WEEKLY
-):
-    conn = get_connection()
-    # カラム名でデータにアクセスできるように設定
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    # フィルタ条件を動的に組み立てる
-    # importanceがmin_importance以上の記事を取得
-    query = "SELECT * FROM articles WHERE importance >= ?"
-    params = [min_importance]
-    # days_agoが指定された場合は、published_atがdays_ago日以内の記事を取得
-    if days_ago is not None:
-        query += " AND DATE(published_at) >= DATE('now', ?)"
-        params.append(f'-{days_ago} days')
+# # 指定した条件で記事を取得する関数
+# def fetch_articles(limit=config.LATEST_NEWS_LIMIT, 
+#     min_importance=config.IMPORTANCE_THRESHOLD, 
+#     days_ago=config.RETENTION_DAYS_WEEKLY
+# ):
+#     conn = get_connection()
+#     # カラム名でデータにアクセスできるように設定
+#     conn.row_factory = sqlite3.Row
+#     cursor = conn.cursor()
+#     # フィルタ条件を動的に組み立てる
+#     # importanceがmin_importance以上の記事を取得
+#     query = "SELECT * FROM articles WHERE importance >= ?"
+#     params = [min_importance]
+#     # days_agoが指定された場合は、published_atがdays_ago日以内の記事を取得
+#     if days_ago is not None:
+#         query += " AND DATE(published_at) >= DATE('now', ?)"
+#         params.append(f'-{days_ago} days')
         
-    # 重要度の高い順、公開日時の新しい順で並べ替え、指定した件数だけ取得
-    query += " ORDER BY importance DESC, published_at DESC LIMIT ?"
-    params.append(limit)
+#     # 重要度の高い順、公開日時の新しい順で並べ替え、指定した件数だけ取得
+#     query += " ORDER BY importance DESC, published_at DESC LIMIT ?"
+#     params.append(limit)
     
-    try:
-        # クエリを実行して記事を取得
-        cursor.execute(query, params)
-        return [dict(row) for row in cursor.fetchall()]
-    finally:
-        conn.close()
+#     try:
+#         # クエリを実行して記事を取得
+#         cursor.execute(query, params)
+#         return [dict(row) for row in cursor.fetchall()]
+#     finally:
+#         conn.close()
