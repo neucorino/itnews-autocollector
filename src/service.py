@@ -1,56 +1,38 @@
 import config
 import db
+import rss_fetcher
 import gemini_analyzer
 import logging
 
 logger = logging.getLogger(__name__)
 
-db_manager = DatabaseManager()
+db_manager = db.DatabaseManager()
 
-# RSSからデータを受け取ってリストを作る
-def process_new_articles(rss_data):
-    # データを (値, 値, ...) のタプルのリストに変換する
-    data_to_save = [
-        (item.title, item.url, item.source, item.summary, item.published_at)
-        for item in rss_data
-    ]
-    
-    # 一括保存！
-    db_manager.bulk_insert_articles(data_to_save)
+# RSSからデータを受け取ってDBに保存する処理
+def process_new_articles(url, source_name):
+    articles = rss_fetcher.fetch_rss(url, source_name)
+    db_manager.bulk_insert_articles(articles)
 
 def process_new_analyses(articles,batch_id):
     # Geminiで分析して、分析結果を辞書で受け取る
     analyzed_articles = gemini_analyzer.analyze_articles(articles, batch_id)
-    
+    return db_manager.bulk_insert_article_analyses(analyzed_articles)
+
     # 分析結果をDBに保存する
     db_manager.bulk_insert_article_analyses(analyzed_articles)
 
-# メール通知対象の記事をDBから取得
-def get_notification_targets(target_count=config.MAX_NOTIFICATION_COUNT) -> list:
-    # 1. まずは「今日」の重要な記事を狙い撃ちで取得
-    today_articles = db.fetch_articles(
-        limit=target_count, 
-        min_importance=config.IMPORTANCE_THRESHOLD, 
-        days_ago=config.RETENTION_DAYS_TODAY
-        )
+def process_new_rankings(batch_id):
+    # ランキングを生成してDBに保存する
+    ranked_articles = ranking.generate_rankings(batch_id)
+    return db_manager.bulk_insert_rankings(ranked_articles)
 
-    targets = today_articles
+    db_manager.bulk_insert_rankings(ranked_articles)
 
-    # 2. 足りない場合は「過去7日」から補填
-    if len(targets) < target_count:
-        needed = target_count - len(targets)
-        # すでに取得済みのURLを除外するために全件多めに取ってからフィルタするか、
-        # SQLで NOT IN を使うなどの工夫ができます
-        weekly_articles = db.fetch_articles(
-            limit=target_count, 
-            min_importance=config.IMPORTANCE_THRESHOLD, 
-            days_ago=config.RETENTION_DAYS_WEEKLY
-            )
-        
-        existing_urls = {a["url"] for a in targets}
-        extra = [a for a in weekly_articles if a["url"] not in existing_urls]
-        
-        targets = (targets + extra)[:target_count]
-
-    logger.info(f"通知対象: {[a['title'] for a in targets]}")
+def get_notification_targets(min_importance=config.IMPORTANCE_THRESHOLD) -> list:
+    """
+    rankingsテーブルから通知対象を絞り込む
+    """
+    targets = db_manager.get_notification_targets(min_importance)
+    
+    logger.info(f"通知対象: {len(targets)}件 / {[a['title'] for a in targets]}")
     return targets

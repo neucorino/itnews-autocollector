@@ -1,5 +1,6 @@
 from google import genai
 from google.genai import types
+from models import ArticleAnalysis
 import config
 import logging
 import json
@@ -49,15 +50,17 @@ def analyze_articles(articles: list, batch_id: int) -> list:
             logger.warning(f"Gemini分析失敗(スキップ): {article.title}")
             continue
 
-        analyses_list.append({
-            "article_id":  article.id,
-            "batch_id":    batch_id,
-            "ai_summary":  result.get("ai_summary", ""),
-            "importance":  result.get("importance", 0),
-            "reason":      result.get("reason", ""),
-            "category":    result.get("category", ""),
-            "analyzed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
+        analyze = ArticleAnalysis(
+            article_id=article_id,
+            batch_id=batch_id,
+            ai_summary=result.get("ai_summary", ""),
+            importance=result.get("importance", 0),
+            reason=result.get("reason", ""),
+            category=result.get("category", ""),
+        )
+
+        analyses_list.append(analyze)
+
         logger.info(f"Gemini分析完了: {article.title} (重要度: {result.get('importance', 0)})")
 
     return analyses_list

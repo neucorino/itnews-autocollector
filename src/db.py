@@ -1,4 +1,5 @@
 import sqlite3
+import models
 from datetime import datetime
 import config
 import logging
@@ -45,19 +46,19 @@ CREATE_RANKINGS = """
     CREATE TABLE IF NOT EXISTS rankings (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         article_id  INTEGER NOT NULL,
-        analysis_id INTEGER NOT NULL,
+        analyses_id INTEGER NOT NULL,
         batch_id    INTEGER NOT NULL,
         rank        INTEGER,
         created_at  TEXT,
         FOREIGN KEY (article_id)  REFERENCES articles(id),
-        FOREIGN KEY (analysis_id) REFERENCES article_analyses(id),
+        FOREIGN KEY (analyses_id) REFERENCES article_analyses(id),
         FOREIGN KEY (batch_id)    REFERENCES batches(id)
     )
 """
 
 INSERT_ARTICLE = """
     INSERT OR IGNORE INTO articles (title, url, source, summary, published_at)
-    VALUES (?, ?, ?, ?, ?)
+    VALUES (:title, :url, :source, :summary, :published_at)
 """
 
 INSERT_ANALYSES = """
@@ -65,22 +66,23 @@ INSERT_ANALYSES = """
         article_id, batch_id, ai_summary, 
         importance, reason, category, analyzed_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES (:article_id, :batch_id, :ai_summary, 
+            :importance, :reason, :category, :analyzed_at)
 """
 
 INSERT_RANKING = """
-    INSERT INTO rankings (article_id, analysis_id, batch_id, rank, created_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO rankings (article_id, analyses_id, batch_id, rank, created_at)
+    VALUES (:article_id, :analyses_id, :batch_id, :rank, :created_at)
 """
 
 START_NEW_BATCH = """
-    INSERT INTO batches (started_at, status) VALUES (?, ?)
+    INSERT INTO batches (started_at, status) VALUES (:started_at, :status)
 """
 
 FINISH_BATCH = """
     UPDATE batches 
-    SET ended_at = ?, status = ?, new_articles_count = ? 
-    WHERE id = ?
+    SET ended_at = :ended_at, status = :status, new_articles_count = :new_articles_count 
+    WHERE id = :id
 """
 
 class DatabaseManager:
@@ -102,18 +104,21 @@ class DatabaseManager:
     # 記事リストに一括でinsertする関数
     def bulk_insert_articles(self,articles_list):
         """記事リストを一括でinsertする。URLが重複する場合はスキップ。"""
+        records = [a.to_dict() for a in articles_list]
         with self.conn:
-            self.conn.executemany(INSERT_ARTICLE, articles_list)
+            self.conn.executemany(INSERT_ARTICLE, records)
         logger.info(f"{len(articles_list)}件の記事を一括処理しました。")
     
     def bulk_insert_analyses(self, analyses_list):
+        records = [a.to_dict() for a in analyses_list]
         with self.conn:
-            self.conn.executemany(INSERT_ANALYSES, analyses_list)
+            self.conn.executemany(INSERT_ANALYSES, records)
         logger.info(f"{len(analyses_list)}件の解析結果を一括処理しました。")
     
     def bulk_insert_rankings(self, rankings_list):
+        records = [a.to_dict() for a in rankings_list]
         with self.conn:
-            self.conn.executemany(INSERT_RANKING, rankings_list)
+            self.conn.executemany(INSERT_RANKING, records)
         logger.info(f"{len(rankings_list)}件のランキングを一括処理しました。")
 
     # バッチ開始を記録するメソッド（操作）
@@ -134,7 +139,7 @@ class DatabaseManager:
         logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
 
 
-# # 指定した条件で記事を取得する関数
+# 指定した条件で記事を取得する関数
 # def fetch_articles(limit=config.LATEST_NEWS_LIMIT, 
 #     min_importance=config.IMPORTANCE_THRESHOLD, 
 #     days_ago=config.RETENTION_DAYS_WEEKLY
