@@ -44,6 +44,8 @@ def analyze_articles(articles: list, batch_id: int) -> list:
     """
     analyses_list = []
     for article in articles:
+        # articleオブジェクトからidを取得（ここが article_id になる）
+        current_article_id = getattr(article, 'id', None)
         result = analyze_article_with_gemini(article.title, article.summary)
 
         if not result:
@@ -51,7 +53,7 @@ def analyze_articles(articles: list, batch_id: int) -> list:
             continue
 
         analyze = ArticleAnalysis(
-            article_id=article_id,
+            article_id=current_article_id,
             batch_id=batch_id,
             ai_summary=result.get("ai_summary", ""),
             importance=result.get("importance", 0),

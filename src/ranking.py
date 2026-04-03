@@ -1,4 +1,5 @@
 import db
+import models
 import config
 import logging
 
@@ -25,8 +26,9 @@ def generate_rankings(batch_id):
 
     rankings_to_save = []
     for rank, article in enumerate(ranked_articles, start=1):
+        current_article_id = getattr(article, 'id', None)
         rankings= Ranking(
-            article_id=article_id,
+            article_id=current_article_id,
             analyses_id=article_analyses_id,
             batch_id=batch_id,
             rank=rank

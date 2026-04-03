@@ -37,7 +37,7 @@ CREATE_ARTICLE_ANALYSES = """
         reason      TEXT,
         category    TEXT,
         analyzed_at TEXT,
-        FOREIGN KEY (article_id) REFERENCES articles(id)
+        FOREIGN KEY (article_id) REFERENCES articles(id),
         FOREIGN KEY (batch_id)   REFERENCES batches(id)
     )
 """
@@ -85,6 +85,22 @@ FINISH_BATCH = """
     WHERE id = :id
 """
 
+GET_NOTIFICATION_TARGETS = """
+    SELECT 
+        a.title,
+        a.url,
+        a.source,
+        aa.ai_summary,
+        aa.importance,
+        aa.category,
+        r.rank
+    FROM rankings r
+    JOIN articles a ON r.article_id = a.id
+    JOIN article_analyses aa ON r.article_id = aa.article_id
+    WHERE aa.importance >= :min_importance
+    ORDER BY r.rank ASC
+"""
+
 class DatabaseManager:
     # __init__ 
     def __init__(self,db_path=config.DB_PATH):
@@ -110,26 +126,42 @@ class DatabaseManager:
         logger.info(f"{len(articles_list)}件の記事を一括処理しました。")
     
     def bulk_insert_analyses(self, analyses_list):
-        records = [a.to_dict() for a in analyses_list]
+        # records = [a.to_dict() for a in analyses_list]
+        records = []
+        for a in analyses_list:
+            d = a.to_dict()
+            # もし辞書の中に analyzed_at がなければ、ここで現在の時刻を追加する
+            if 'analyzed_at' not in d or d['analyzed_at'] is None:
+                d['analyzed_at'] = datetime.now().isoformat()
+                records.append(d)
         with self.conn:
             self.conn.executemany(INSERT_ANALYSES, records)
         logger.info(f"{len(analyses_list)}件の解析結果を一括処理しました。")
     
     def bulk_insert_rankings(self, rankings_list):
+        if not rankings_list:
+            logger.warning("保存するランキングデータがありません。")
+            return
         records = [a.to_dict() for a in rankings_list]
         with self.conn:
             self.conn.executemany(INSERT_RANKING, records)
         logger.info(f"{len(rankings_list)}件のランキングを一括処理しました。")
-
-    # バッチ開始を記録するメソッド（操作）
+    
     def start_new_batch(self):
         logger.info("バッチを開始します...")
-        with self.conn:
-            cur = self.conn.cursor()
-            cur.execute(START_NEW_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
-            # 最後に挿入されたIDを取得
-            batch_id = cur.lastrowid
-        return batch_id
+        # 1. カーソルを作成
+        cursor = self.conn.cursor()
+        try:
+            # 2. 実行
+            cursor.execute(START_NEW_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
+            # 3. IDを取得
+            batch_id = cursor.lastrowid
+            # 4. コミット（sqlite3では接続オブジェクトで行う）
+            self.conn.commit()
+            return batch_id
+        finally:
+            # 5. 必ずクローズする
+            cursor.close()
 
     # バッチ終了を記録するメソッド（操作）
     def finish_batch(self, batch_id, status,count):
@@ -138,32 +170,12 @@ class DatabaseManager:
             self.conn.execute(FINISH_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
         logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
 
-
-# 指定した条件で記事を取得する関数
-# def fetch_articles(limit=config.LATEST_NEWS_LIMIT, 
-#     min_importance=config.IMPORTANCE_THRESHOLD, 
-#     days_ago=config.RETENTION_DAYS_WEEKLY
-# ):
-#     conn = get_connection()
-#     # カラム名でデータにアクセスできるように設定
-#     conn.row_factory = sqlite3.Row
-#     cursor = conn.cursor()
-#     # フィルタ条件を動的に組み立てる
-#     # importanceがmin_importance以上の記事を取得
-#     query = "SELECT * FROM articles WHERE importance >= ?"
-#     params = [min_importance]
-#     # days_agoが指定された場合は、published_atがdays_ago日以内の記事を取得
-#     if days_ago is not None:
-#         query += " AND DATE(published_at) >= DATE('now', ?)"
-#         params.append(f'-{days_ago} days')
-        
-#     # 重要度の高い順、公開日時の新しい順で並べ替え、指定した件数だけ取得
-#     query += " ORDER BY importance DESC, published_at DESC LIMIT ?"
-#     params.append(limit)
-    
-#     try:
-#         # クエリを実行して記事を取得
-#         cursor.execute(query, params)
-#         return [dict(row) for row in cursor.fetchall()]
-#     finally:
-#         conn.close()
+    def fetch_notification_targets(self, min_importance=config.IMPORTANCE_THRESHOLD):
+        """通知対象をDBから取得する"""
+        try:
+            with self.conn:
+                targets = self.conn.execute(GET_NOTIFICATION_TARGETS, (min_importance,)).fetchall()
+            return [dict(t) for t in targets]
+        except Exception as e:
+            logger.error(f"通知対象の取得に失敗しました: {e}")
+            raise

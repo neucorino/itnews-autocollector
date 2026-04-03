@@ -1,4 +1,6 @@
-from dataclasses import dataclass,asdict
+from dataclasses import dataclass,asdict,field
+from datetime import datetime
+
 
 # ニュース記事を表すデータクラス
 @dataclass
@@ -30,6 +32,8 @@ class ArticleAnalysis:
     importance: int
     reason: str
     category: str
+    # デフォルト値として現在の時刻を入れる設定
+    analyzed_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self):
         return asdict(self)
