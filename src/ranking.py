@@ -1,5 +1,5 @@
 import db
-import models
+from models import Ranking
 import config
 import logging
 
@@ -11,7 +11,8 @@ GET_RANKED_ARTICLES_QUERY = """
         articles.id,
         articles.title,
         articles.published_at,
-        article_analyses.importance
+        article_analyses.importance,
+        article_analyses.id AS analyses_id
     FROM articles
     INNER JOIN article_analyses ON articles.id = article_analyses.article_id
     WHERE articles.published_at >= datetime('now', '-7 days')
@@ -26,13 +27,15 @@ def generate_rankings(batch_id):
 
     rankings_to_save = []
     for rank, article in enumerate(ranked_articles, start=1):
-        current_article_id = getattr(article, 'id', None)
+        #current_article_id = getattr(article, 'id', None)
+       
         rankings= Ranking(
-            article_id=current_article_id,
-            analyses_id=article_analyses_id,
+            article_id=article[0],
+            analyses_id=article[4],
             batch_id=batch_id,
             rank=rank
         )
         rankings_to_save.append(rankings)
 
     logger.info(f"ランキングを生成してDBに保存しました。バッチID: {batch_id}")
+    return rankings_to_save

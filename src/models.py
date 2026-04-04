@@ -44,6 +44,8 @@ class Ranking:
     analyses_id: int
     batch_id: int
     rank: int
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+
 
     def to_dict(self):
         return asdict(self)

@@ -5,9 +5,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def fetch_rss(url, source_name):
-    logger.info(f"RSS取得開始: {url}")
-    feed = feedparser.parse(url)
+def fetch_rss(rss_url, source):
+    logger.info(f"RSS取得開始: {rss_url}")
+    feed = feedparser.parse(rss_url)
     articles = []
     if feed.bozo:
         raise Exception("RSSの形式が壊れています")
@@ -20,7 +20,7 @@ def fetch_rss(url, source_name):
         article = Article(
             title=entry.title,
             url=entry.link,
-            source=source_name,
+            source=source,
             summary=entry.get("summary", ""),
             published_at=entry.get("published", ""),
 

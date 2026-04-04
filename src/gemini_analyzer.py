@@ -46,6 +46,7 @@ def analyze_articles(articles: list, batch_id: int) -> list:
     for article in articles:
         # articleオブジェクトからidを取得（ここが article_id になる）
         current_article_id = getattr(article, 'id', None)
+        logger.info(f"article_id確認: {current_article_id}") 
         result = analyze_article_with_gemini(article.title, article.summary)
 
         if not result:

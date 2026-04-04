@@ -118,25 +118,42 @@ class DatabaseManager:
                 self.conn.execute(ddl)
     
     # 記事リストに一括でinsertする関数
-    def bulk_insert_articles(self,articles_list):
+    def bulk_insert_articles(self, articles_list):
         """記事リストを一括でinsertする。URLが重複する場合はスキップ。"""
-        records = [a.to_dict() for a in articles_list]
-        with self.conn:
-            self.conn.executemany(INSERT_ARTICLE, records)
+        for article in articles_list:
+            cursor = self.conn.execute(INSERT_ARTICLE, article.to_dict())
+            self.conn.commit()
+            
+            if cursor.lastrowid:
+                article.id = cursor.lastrowid  # 新規保存された場合
+            else:
+                # INSERT OR IGNOREでスキップされた場合、URLで既存のidを取得
+                row = self.conn.execute(
+                    "SELECT id FROM articles WHERE url = ?", (article.url,)
+                ).fetchone()
+                if row:
+                    article.id = row[0]
+        
         logger.info(f"{len(articles_list)}件の記事を一括処理しました。")
-    
+        return articles_list  # idが入った状態で返す
+
     def bulk_insert_analyses(self, analyses_list):
-        # records = [a.to_dict() for a in analyses_list]
         records = []
         for a in analyses_list:
             d = a.to_dict()
-            # もし辞書の中に analyzed_at がなければ、ここで現在の時刻を追加する
             if 'analyzed_at' not in d or d['analyzed_at'] is None:
                 d['analyzed_at'] = datetime.now().isoformat()
-                records.append(d)
-        with self.conn:
-            self.conn.executemany(INSERT_ANALYSES, records)
-        logger.info(f"{len(analyses_list)}件の解析結果を一括処理しました。")
+            records.append(d)
+    
+        logger.info(f"保存しようとしているrecords[0]: {records[0] if records else 'リストが空'}")  # ←追加
+        logger.info(f"recordsの件数: {len(records)}")  # ←追加
+    
+        try:  # ←tryで囲む
+            with self.conn:
+                self.conn.executemany(INSERT_ANALYSES, records)
+            logger.info(f"{len(records)}件保存成功")
+        except Exception as e:
+            logger.error(f"INSERT失敗: {e}")  # ←これで本当のエラーが見える    
     
     def bulk_insert_rankings(self, rankings_list):
         if not rankings_list:
@@ -149,19 +166,9 @@ class DatabaseManager:
     
     def start_new_batch(self):
         logger.info("バッチを開始します...")
-        # 1. カーソルを作成
-        cursor = self.conn.cursor()
-        try:
-            # 2. 実行
-            cursor.execute(START_NEW_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
-            # 3. IDを取得
-            batch_id = cursor.lastrowid
-            # 4. コミット（sqlite3では接続オブジェクトで行う）
-            self.conn.commit()
-            return batch_id
-        finally:
-            # 5. 必ずクローズする
-            cursor.close()
+        res = self.conn.execute(START_NEW_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
+        self.conn.commit()
+        return res.lastrowid
 
     # バッチ終了を記録するメソッド（操作）
     def finish_batch(self, batch_id, status,count):

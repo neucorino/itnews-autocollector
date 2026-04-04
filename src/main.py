@@ -30,10 +30,10 @@ def main():
     for rss_url, source in RSS_LIST:
 
         # RSSから記事を取得
-        articles = fetch_rss(url=rss_url, source_name=source)
+        articles = fetch_rss(rss_url, source)
 
         # 重要な記事をDBに保存
-        save_articles= process_new_articles(rss_url, source)
+        articles= process_new_articles(rss_url, source)
         save_analyses = process_new_analyses(articles, batch_id)
         save_rankings = process_new_rankings(batch_id)
 
