@@ -195,7 +195,7 @@ class DatabaseManager:
         min_importance=config.IMPORTANCE_THRESHOLD,
         lookback_days=config.NOTIFICATION_LOOKBACK_DAYS,
         limit=config.MAX_NOTIFICATION_COUNT,
-    ):
+        ):
         """過去N日・重要度しきい値以上を満たす記事を、記事ごとに1行（代表の分析）で取得する。"""
         since = f"-{int(lookback_days)} days"
         params = {
