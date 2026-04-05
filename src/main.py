@@ -43,7 +43,7 @@ def main():
     logger.info(f"最終通知件数: {len(notify_articles)}件")
     
     # メール送信
-    # send_daily_email()
+    send_daily_email()
 
 if __name__ == "__main__":
     main()

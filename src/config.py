@@ -68,10 +68,7 @@ SYSTEM_INSTRUCTION = """
     "reason": "なぜその点数か。ユーザーの関心（実用AI>理論/論文）に基づき記述（日本語）",
     "category": "技術カテゴリ"
     }
-    """
-
-#重要度の閾値
-IMPORTANCE_THRESHOLD = 7 
+    """ 
 
 #メール設定
 FROM_ADDRESS = os.getenv('GMAIL_USER')
@@ -79,9 +76,8 @@ MY_PASSWORD = os.getenv('GMAIL_PASS')
 
 # ニュース取得のルール
 LATEST_NEWS_LIMIT = 30       # 最新ニュース取得件数
-IMPORTANCE_THRESHOLD = 5    # 通知対象にする重要度のしきい値
-RETENTION_DAYS_WEEKLY = 7    # 「週間」とみなす日数
-RETENTION_DAYS_TODAY = 0     # 「今日」とみなす日数（0は今日のみ）
+IMPORTANCE_THRESHOLD = 7    # 通知対象にする重要度のしきい値
 
 # 通知設定
+NOTIFICATION_LOOKBACK_DAYS = 7   # 通知対象とする記事の公開日のさかのぼり日数
 MAX_NOTIFICATION_COUNT = 5   # 一度に通知する最大件数

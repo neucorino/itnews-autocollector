@@ -85,20 +85,33 @@ FINISH_BATCH = """
     WHERE id = :id
 """
 
+# published_at は RSS の RFC 形式のため datetime(published_at) は NULL になりがち。
+# ランキングと同様に raw 値と datetime('now', ...) を直接比較する。
+# 同一記事に複数の分析行がある場合は、重要度→分析日時→id の順で1件に絞る。
 GET_NOTIFICATION_TARGETS = """
-    SELECT 
-        a.title,
-        a.url,
-        a.source,
-        aa.ai_summary,
-        aa.importance,
-        aa.category,
-        r.rank
-    FROM rankings r
-    JOIN articles a ON r.article_id = a.id
-    JOIN article_analyses aa ON r.article_id = aa.article_id
-    WHERE aa.importance >= :min_importance
-    ORDER BY r.rank ASC
+    WITH candidates AS (
+        SELECT
+            a.title,
+            a.url,
+            a.source,
+            aa.ai_summary,
+            aa.importance,
+            aa.category,
+            aa.analyzed_at,
+            ROW_NUMBER() OVER (
+                PARTITION BY a.id
+                ORDER BY aa.importance DESC, aa.analyzed_at DESC, aa.id DESC
+            ) AS rn
+        FROM articles a
+        INNER JOIN article_analyses aa ON aa.article_id = a.id
+        WHERE a.published_at >= datetime('now', :since)
+          AND aa.importance >= :min_importance
+    )
+    SELECT title, url, source, ai_summary, importance, category
+    FROM candidates
+    WHERE rn = 1
+    ORDER BY importance DESC, analyzed_at DESC, title ASC
+    LIMIT :limit
 """
 
 class DatabaseManager:
@@ -177,11 +190,22 @@ class DatabaseManager:
             self.conn.execute(FINISH_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
         logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
 
-    def fetch_notification_targets(self, min_importance=config.IMPORTANCE_THRESHOLD):
-        """通知対象をDBから取得する"""
+    def fetch_notification_targets(
+        self,
+        min_importance=config.IMPORTANCE_THRESHOLD,
+        lookback_days=config.NOTIFICATION_LOOKBACK_DAYS,
+        limit=config.MAX_NOTIFICATION_COUNT,
+    ):
+        """過去N日・重要度しきい値以上を満たす記事を、記事ごとに1行（代表の分析）で取得する。"""
+        since = f"-{int(lookback_days)} days"
+        params = {
+            "since": since,
+            "min_importance": min_importance,
+            "limit": int(limit),
+        }
         try:
             with self.conn:
-                targets = self.conn.execute(GET_NOTIFICATION_TARGETS, (min_importance,)).fetchall()
+                targets = self.conn.execute(GET_NOTIFICATION_TARGETS, params).fetchall()
             return [dict(t) for t in targets]
         except Exception as e:
             logger.error(f"通知対象の取得に失敗しました: {e}")

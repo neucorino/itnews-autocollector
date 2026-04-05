@@ -39,19 +39,26 @@ def process_new_rankings(batch_id):
 
 def get_notification_targets() -> list:
     """
-    設定値に基づいて通知対象を絞り込み、リストを返す
+    設定値に基づいて通知対象を絞り込み、リストを返す。
+    過去N日・重要度しきい値以上から、重要度順で最大M件。
     """
-    # 1. 設定ファイルからしきい値を取得
-    threshold = getattr(config, 'IMPORTANCE_THRESHOLD', 7)
-    
-    # 2. DBマネージャーにデータ取得を依頼
-    targets = db_manager.fetch_notification_targets(threshold)
-    
-    # 3. ログ出力などの加工処理
+    threshold = getattr(config, "IMPORTANCE_THRESHOLD", 7)
+    lookback = getattr(config, "NOTIFICATION_LOOKBACK_DAYS", 7)
+    max_count = getattr(config, "MAX_NOTIFICATION_COUNT", 5)
+
+    targets = db_manager.fetch_notification_targets(
+        min_importance=threshold,
+        lookback_days=lookback,
+        limit=max_count,
+    )
+
     if not targets:
-        logger.info("通知対象の記事はありませんでした。")
+        logger.info(
+            f"通知対象の記事はありませんでした（過去{lookback}日・重要度{threshold}以上・最大{max_count}件）。"
+        )
     else:
-        titles = [t['title'] for t in targets]
-        logger.info(f"通知対象確定: {len(targets)}件 / {titles}")
-        
+        titles = [t["title"] for t in targets]
+        logger.info(
+            f"通知対象確定: {len(targets)}件（過去{lookback}日・重要度{threshold}以上・最大{max_count}件） / {titles}"
+        )
     return targets

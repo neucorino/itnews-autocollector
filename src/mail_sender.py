@@ -6,22 +6,22 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def build_email_body(articles, IMPORTANCE_THRESHOLD):
-    """重要記事リストからメール本文を組み立てて返す"""
+def build_email_body(articles):
+    """過去N日・重要度しきい値以上から選んだ記事リストからメール本文を組み立てる"""
     lines = [
-        f"本日の重要ITニュース（重要度 {IMPORTANCE_THRESHOLD} 以上）",
-        f"対象記事数: {len(articles)} 件",
+        f"過去{config.NOTIFICATION_LOOKBACK_DAYS}日間の重要ITニュース（重要度 {config.IMPORTANCE_THRESHOLD} 以上）",
+        f"送信件数: {len(articles)} 件（上位最大 {config.MAX_NOTIFICATION_COUNT} 件）",
         "=" * 60,
-        ]
+    ]
     for i, a in enumerate(articles, 1):
         lines += [
-            f"\n【{i}】{a.title}",
-            f"  URL      : {a.url}",
-            f"  重要度   : {a.importance} / 10",
-            f"  要約     :\n{a.summary}",
+            f"\n【{i}】{a['title']}",
+            f"  URL      : {a['url']}",
+            f"  重要度   : {a['importance']} / 10",
+            f"  要約     :\n{a['ai_summary']}",
             "-" * 60,
             ]
-        return "\n".join(lines)
+    return "\n".join(lines)
 
 
 def send_daily_email():
@@ -32,8 +32,11 @@ def send_daily_email():
         logger.info("重要記事なし。メールは送信しません。")
         return
 
-    subject = f"【ITニュース】重要記事 {len(important_articles)} 件 ({datetime.now().strftime('%Y-%m-%d')})"
-    body = build_email_body(important_articles,IMPORTANCE_THRESHOLD)
+    subject = (
+        f"【ITニュース】過去{config.NOTIFICATION_LOOKBACK_DAYS}日・TOP{config.MAX_NOTIFICATION_COUNT} "
+        f"{len(important_articles)} 件 ({datetime.now().strftime('%Y-%m-%d')})"
+    )
+    body = build_email_body(important_articles)
 
     try:
         send_gmail(subject=subject, body=body)
