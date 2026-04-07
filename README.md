@@ -2,6 +2,9 @@
 
 # IT News Auto-Collector & Delivery System
 
+**Version 1.0** — コア機能（RSS収集・AI要約・重要度ランキング・メール通知）を一通り実装した自律型バッチシステム
+
+
 ## 使用技術一覧
 
 <p style="display: inline">
@@ -218,6 +221,16 @@ GMAIL_PASS=your-app-password
 | `GEMINI_API_KEY` | Gemini API の認証キー | Google AI Studio で発行 |
 | `GMAIL_USER` | 送信元 Gmail アドレス | |
 | `GMAIL_PASS` | Gmail の SMTP 用パスワード | アプリパスワードを推奨（運用ポリシーに従ってください） |
+
+#### 動作設定（config.py）
+
+ユーザーが運用ポリシーに合わせて調整することが多い変数のみを抜粋しています。
+
+| 変数名 | 役割 | デフォルト値の目安 |
+|--------|------|-------------------|
+| `IMPORTANCE_THRESHOLD` | メール通知する記事の重要度下限（1〜10） | 7 |
+| `NOTIFICATION_LOOKBACK_DAYS` | 通知対象とする記事の取得期間（日） | 7 |
+| `MAX_NOTIFICATION_COUNT` | 1回の通知で送る最大記事数 | 5 |
 
 ### 3. `data/` と `logs/` の用意
 
