@@ -7,20 +7,42 @@ import logging
 logger = logging.getLogger(__name__)
 
 def build_email_body(articles):
-    """過去N日・重要度しきい値以上から選んだ記事リストからメール本文を組み立てる"""
+    """ランキング形式のメール本文を組み立てる"""
+
+    # 上位5件に制限
+    top_articles = articles[:5]
+
+    rank_emojis = ["🥇", "🥈", "🥉", "📌", "📌"]
+
     lines = [
-        f"過去{config.NOTIFICATION_LOOKBACK_DAYS}日間の重要ITニュース（重要度 {config.IMPORTANCE_THRESHOLD} 以上）",
-        f"送信件数: {len(articles)} 件（上位最大 {config.MAX_NOTIFICATION_COUNT} 件）",
-        "=" * 60,
+        "🧠 ITニュースダイジェスト（直近7日）",
+        "",
+        "---",
+        "",
     ]
-    for i, a in enumerate(articles, 1):
+
+    for i, a in enumerate(top_articles):
+        rank = rank_emojis[i]
+
+        summary = a["ai_summary"].replace("\n", " ")
+
+        # メール本文に追加
         lines += [
-            f"\n【{i}】{a['title']}",
-            f"  URL      : {a['url']}",
-            f"  重要度   : {a['importance']} / 10",
-            f"  要約     :\n{a['ai_summary']}",
-            "-" * 60,
-            ]
+            f"{rank}{i+1}位（重要度: {a['importance']}）",
+            f"{a['title']}",
+            f"→ {summary}",
+            f"→ {a['url']}",
+            "----------------------------------",
+            "",
+        ]
+
+    # 傾向（仮：あとでGeminiで生成してもOK）
+    lines += [
+        "📌 今日の傾向",
+        "・AI関連ニュースが多め",
+        "・大手テック企業の動きが活発",
+    ]
+
     return "\n".join(lines)
 
 
@@ -42,4 +64,4 @@ def send_daily_email():
         send_gmail(subject=subject, body=body)
         logger.info(f"メール送信完了: {len(important_articles)} 件の重要記事")
     except Exception as e:
-        logger.error(f"メール送信に失敗しました: {e}")
+        logger.exception(f"メール送信に失敗しました")

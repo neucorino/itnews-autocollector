@@ -2,6 +2,9 @@ import smtplib
 from email.mime.text import MIMEText
 from email.utils import formatdate
 import config
+import logging
+
+logger = logging.getLogger(__name__)
 
 def send_gmail(subject, body, to_address=None):
     """
@@ -20,6 +23,6 @@ def send_gmail(subject, body, to_address=None):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
             smtp.login(config.FROM_ADDRESS, config.MY_PASSWORD)
             smtp.send_message(msg)
-        print(f"📧 メール送信成功: {subject}")
+        logger.info(f"📧 メール送信成功: {subject}")
     except Exception as e:
-        print(f"❌ メール送信エラー: {e}")
+        logger.exception(f"❌ メール送信エラー")

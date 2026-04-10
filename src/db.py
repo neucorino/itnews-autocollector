@@ -6,6 +6,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+# テーブル作成の変数を定義
 CREATE_BATCHES = """
     CREATE TABLE IF NOT EXISTS batches (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,6 +93,7 @@ FINISH_BATCH = """
 GET_NOTIFICATION_TARGETS = """
     WITH candidates AS (
         SELECT
+            a.id,
             a.title,
             a.url,
             a.source,
@@ -107,13 +110,16 @@ GET_NOTIFICATION_TARGETS = """
         WHERE a.published_at >= datetime('now', :since)
           AND aa.importance >= :min_importance
     )
-    SELECT title, url, source, ai_summary, importance, category
+    SELECT id, title, url, source, ai_summary, importance, category
     FROM candidates
     WHERE rn = 1
     ORDER BY importance DESC, analyzed_at DESC, title ASC
     LIMIT :limit
 """
 
+
+
+# データベース管理クラス
 class DatabaseManager:
     # __init__ 
     def __init__(self,db_path=config.DB_PATH):
@@ -124,13 +130,17 @@ class DatabaseManager:
         logger.info(f"DB接続を開始: {db_path}")
         self.create_tables() # インスタンス化した時にテーブルがなければ作る
     
+    
+    # テーブルを作成するメソッド（操作）
     def create_tables(self) -> None:
         """テーブルが存在しない場合に作成する。"""
         with self.conn:
             for ddl in (CREATE_BATCHES, CREATE_ARTICLES, CREATE_ARTICLE_ANALYSES, CREATE_RANKINGS):
                 self.conn.execute(ddl)
+        logger.info("テーブルを作成しました。")
     
-    # 記事リストに一括でinsertする関数
+
+    # 記事リストに一括でinsertするメソッド（操作）
     def bulk_insert_articles(self, articles_list):
         """記事リストを一括でinsertする。URLが重複する場合はスキップ。"""
         for article in articles_list:
@@ -145,11 +155,12 @@ class DatabaseManager:
                     "SELECT id FROM articles WHERE url = ?", (article.url,)
                 ).fetchone()
                 if row:
-                    article.id = row[0]
-        
+                    article.id = row[0] 
         logger.info(f"{len(articles_list)}件の記事を一括処理しました。")
         return articles_list  # idが入った状態で返す
 
+
+    # 分析結果を一括でinsertするメソッド（操作）
     def bulk_insert_analyses(self, analyses_list):
         records = []
         for a in analyses_list:
@@ -166,8 +177,10 @@ class DatabaseManager:
                 self.conn.executemany(INSERT_ANALYSES, records)
             logger.info(f"{len(records)}件保存成功")
         except Exception as e:
-            logger.error(f"INSERT失敗: {e}")  # ←これで本当のエラーが見える    
+            logger.exception(f"INSERT失敗")  # ←これで本当のエラーが見える
     
+    
+    # ランキングを一括でinsertするメソッド（操作）
     def bulk_insert_rankings(self, rankings_list):
         if not rankings_list:
             logger.warning("保存するランキングデータがありません。")
@@ -177,11 +190,14 @@ class DatabaseManager:
             self.conn.executemany(INSERT_RANKING, records)
         logger.info(f"{len(rankings_list)}件のランキングを一括処理しました。")
     
+
+    # バッチ開始を記録するメソッド（操作）
     def start_new_batch(self):
         logger.info("バッチを開始します...")
         res = self.conn.execute(START_NEW_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
         self.conn.commit()
         return res.lastrowid
+
 
     # バッチ終了を記録するメソッド（操作）
     def finish_batch(self, batch_id, status,count):
@@ -190,6 +206,8 @@ class DatabaseManager:
             self.conn.execute(FINISH_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
         logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
 
+
+    # 通知対象を取得するメソッド（操作）
     def fetch_notification_targets(
         self,
         min_importance=config.IMPORTANCE_THRESHOLD,
@@ -208,5 +226,5 @@ class DatabaseManager:
                 targets = self.conn.execute(GET_NOTIFICATION_TARGETS, params).fetchall()
             return [dict(t) for t in targets]
         except Exception as e:
-            logger.error(f"通知対象の取得に失敗しました: {e}")
+            logger.exception(f"通知対象の取得に失敗しました")
             raise

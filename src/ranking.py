@@ -5,13 +5,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 過去N日間に公開された記事の中から、重要度の高い順にトップ10件を取得する
+# 修正版：最新のランキング（batch_idが最大のもの）に紐づくデータだけを取る
+# 修正後のクエリ
 GET_RANKED_ARTICLES_QUERY = """
     SELECT 
         articles.id,
         articles.title,
         articles.published_at,
         article_analyses.importance,
+        article_analyses.ai_summary, -- 👈 これを追加！
         article_analyses.id AS analyses_id
     FROM articles
     INNER JOIN article_analyses ON articles.id = article_analyses.article_id
@@ -19,6 +21,7 @@ GET_RANKED_ARTICLES_QUERY = """
     ORDER BY article_analyses.importance DESC, articles.published_at DESC
     LIMIT 10
 """
+
 
 def generate_rankings(batch_id):
     """重要度の高い記事をランキング形式で取得"""
@@ -33,8 +36,8 @@ def generate_rankings(batch_id):
         #current_article_id = getattr(article, 'id', None)
        
         rankings= Ranking(
-            article_id=article[0],
-            analyses_id=article[4],
+            article_id=article['id'],
+            analyses_id=article['analyses_id'],
             batch_id=batch_id,
             rank=rank
         )

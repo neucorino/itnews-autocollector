@@ -5,11 +5,14 @@ from dotenv import load_dotenv
 # 環境変数の読み込み
 load_dotenv()
 
+
 #プロジェクトのルート
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
 #Database
 DB_PATH = BASE_DIR / "data" / "news.db"
+
 
 # RSS
 RSS_LIST = [
@@ -17,15 +20,18 @@ RSS_LIST = [
 ]
 FETCH_LIMIT = 30
 
+
 # ロギングの設定
 LOG_FILE = BASE_DIR / "logs" / "it_news_system.log"
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
 
+
 # Gemini設定
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL_ID = "gemini-2.0-flash"
 TEMPERATURE = 0.1
+
 
 #プロンプトのテンプレート
 PROMPT_TEMPLATE = """
@@ -39,6 +45,7 @@ PROMPT_TEMPLATE = """
         "reason": "重要度の理由、必ず日本語で記述すること",
         "category": "技術カテゴリ"
     }}"""
+
 
 SYSTEM_INSTRUCTION = """
     あなたは、30年の経験を持つシニアソフトウェアエンジニア兼技術評論家です。
@@ -70,13 +77,16 @@ SYSTEM_INSTRUCTION = """
     }
     """ 
 
+
 #メール設定
 FROM_ADDRESS = os.getenv('GMAIL_USER')
 MY_PASSWORD = os.getenv('GMAIL_PASS')
 
+
 # ニュース取得のルール
 LATEST_NEWS_LIMIT = 30       # 最新ニュース取得件数
-IMPORTANCE_THRESHOLD = 7    # 通知対象にする重要度のしきい値
+IMPORTANCE_THRESHOLD = 5    # 通知対象にする重要度のしきい値
+
 
 # 通知設定
 NOTIFICATION_LOOKBACK_DAYS = 7   # 通知対象とする記事の公開日のさかのぼり日数
