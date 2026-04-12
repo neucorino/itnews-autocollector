@@ -46,9 +46,9 @@ def build_email_body(articles):
     return "\n".join(lines)
 
 
-def send_daily_email():
+def send_daily_email(batch_id:int):
     """毎日決まった時間に呼び出される関数。重要記事をメールで送信する。"""
-    important_articles = get_notification_targets()
+    important_articles = get_notification_targets(batch_id)
 
     if not important_articles:
         logger.info("重要記事なし。メールは送信しません。")

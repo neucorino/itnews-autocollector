@@ -5,38 +5,37 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 修正版：最新のランキング（batch_idが最大のもの）に紐づくデータだけを取る
-# 修正後のクエリ
+# 最新のAI分析結果を参照し重要度が高い順ぬTOP10を抽出する
 GET_RANKED_ARTICLES_QUERY = """
     SELECT 
-        articles.id,
-        articles.title,
-        articles.published_at,
-        article_analyses.importance,
-        article_analyses.ai_summary, -- 👈 これを追加！
-        article_analyses.id AS analyses_id
-    FROM articles
-    INNER JOIN article_analyses ON articles.id = article_analyses.article_id
-    WHERE articles.published_at >= datetime('now', ?)
-    ORDER BY article_analyses.importance DESC, articles.published_at DESC
+        a.id AS article_id, 
+        aa.id AS analyses_id,
+        aa.importance
+    FROM articles a
+    INNER JOIN article_analyses aa ON a.id = aa.article_id
+    -- 「記事ごとの最新の分析レコードID」のリストを作る
+    WHERE aa.id IN (
+        SELECT MAX(id)
+        FROM article_analyses 
+        GROUP BY article_id
+    )
+    ORDER BY aa.importance DESC, a.published_at DESC
     LIMIT 10
 """
 
 
-def generate_rankings(batch_id):
+def generate_rankings(batch_id:int):
     """重要度の高い記事をランキング形式で取得"""
     db_manager = db.DatabaseManager()
-    since = f"-{config.NOTIFICATION_LOOKBACK_DAYS} days"
     ranked_articles = db_manager.conn.execute(
-        GET_RANKED_ARTICLES_QUERY, (since,)
+        GET_RANKED_ARTICLES_QUERY
     ).fetchall()
 
     rankings_to_save = []
     for rank, article in enumerate(ranked_articles, start=1):
-        #current_article_id = getattr(article, 'id', None)
        
         rankings= Ranking(
-            article_id=article['id'],
+            article_id=article['article_id'],
             analyses_id=article['analyses_id'],
             batch_id=batch_id,
             rank=rank

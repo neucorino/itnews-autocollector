@@ -87,33 +87,22 @@ FINISH_BATCH = """
     WHERE id = :id
 """
 
-# published_at は RSS の RFC 形式のため datetime(published_at) は NULL になりがち。
-# ランキングと同様に raw 値と datetime('now', ...) を直接比較する。
-# 同一記事に複数の分析行がある場合は、重要度→分析日時→id の順で1件に絞る。
+# 通知対象の絞り込みrank順に取得する
 GET_NOTIFICATION_TARGETS = """
-    WITH candidates AS (
-        SELECT
-            a.id,
-            a.title,
-            a.url,
-            a.source,
-            aa.ai_summary,
-            aa.importance,
-            aa.category,
-            aa.analyzed_at,
-            ROW_NUMBER() OVER (
-                PARTITION BY a.id
-                ORDER BY aa.importance DESC, aa.analyzed_at DESC, aa.id DESC
-            ) AS rn
-        FROM articles a
-        INNER JOIN article_analyses aa ON aa.article_id = a.id
-        WHERE a.published_at >= datetime('now', :since)
-          AND aa.importance >= :min_importance
-    )
-    SELECT id, title, url, source, ai_summary, importance, category
-    FROM candidates
-    WHERE rn = 1
-    ORDER BY importance DESC, analyzed_at DESC, title ASC
+    SELECT
+        a.id,
+        a.title,
+        a.url,
+        a.source,
+        aa.ai_summary,
+        aa.importance,
+        aa.category,
+        r.rank
+    FROM rankings r
+    INNER JOIN articles a ON r.article_id = a.id
+    INNER JOIN article_analyses aa ON r.analyses_id = aa.id
+    WHERE r.batch_id = :batch_id  -- 今回の実行分だけに絞る
+    ORDER BY r.rank ASC
     LIMIT :limit
 """
 
@@ -152,7 +141,7 @@ class DatabaseManager:
             else:
                 # INSERT OR IGNOREでスキップされた場合、URLで既存のidを取得
                 row = self.conn.execute(
-                    "SELECT id FROM articles WHERE url = ?", (article.url,)
+                    "SELECT id FROM articles WHERE url = ?", (article.url,) 
                 ).fetchone()
                 if row:
                     article.id = row[0] 
@@ -168,9 +157,6 @@ class DatabaseManager:
             if 'analyzed_at' not in d or d['analyzed_at'] is None:
                 d['analyzed_at'] = datetime.now().isoformat()
             records.append(d)
-    
-        logger.info(f"保存しようとしているrecords[0]: {records[0] if records else 'リストが空'}")  # ←追加
-        logger.info(f"recordsの件数: {len(records)}")  # ←追加
     
         try:  # ←tryで囲む
             with self.conn:
@@ -210,6 +196,7 @@ class DatabaseManager:
     # 通知対象を取得するメソッド（操作）
     def fetch_notification_targets(
         self,
+        batch_id:int,
         min_importance=config.IMPORTANCE_THRESHOLD,
         lookback_days=config.NOTIFICATION_LOOKBACK_DAYS,
         limit=config.MAX_NOTIFICATION_COUNT,
@@ -217,14 +204,17 @@ class DatabaseManager:
         """過去N日・重要度しきい値以上を満たす記事を、記事ごとに1行（代表の分析）で取得する。"""
         since = f"-{int(lookback_days)} days"
         params = {
+            "batch_id": batch_id,
             "since": since,
             "min_importance": min_importance,
             "limit": int(limit),
         }
         try:
             with self.conn:
-                targets = self.conn.execute(GET_NOTIFICATION_TARGETS, params).fetchall()
-            return [dict(t) for t in targets]
+                rows = self.conn.execute(GET_NOTIFICATION_TARGETS, params).fetchall()
+            if not rows:
+                return [] # 0件なら空リストを返す
+            return [dict(r) for r in rows]
         except Exception as e:
-            logger.exception(f"通知対象の取得に失敗しました")
-            raise
+            logger.error(f"通知対象の取得に失敗: {e}")
+            return [] # エラー時も None ではなく空リストを返す

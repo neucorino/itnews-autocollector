@@ -28,7 +28,6 @@ def analyze_article_with_gemini(title: str, summary: str) -> dict:
                 temperature=config.TEMPERATURE)
         )
         raw_text = response.text # Gemini APIからの生のテキストレスポンス
-        #logger.info(f"RAWレスポンス: {raw_text}")
         logger.info("Gemini APIからのレスポンスを受信")
         result = json.loads(raw_text) # JSON形式のテキストを辞書に変換
         return result
@@ -45,12 +44,9 @@ def analyze_articles(articles: list, batch_id: int) -> list:
     """
     analyses_list = []
     for article in articles:
-        logger.info(f"DEBUG: articleオブジェクト: {article}")
         # articleオブジェクトからidを取得（ここが article_id になる）
-        current_article_id = getattr(article, 'id', None)
-        logger.info(f"article_id確認: {current_article_id}") 
+        current_article_id = getattr(article, 'id', None) 
         result = analyze_article_with_gemini(article.title, article.summary)
-        #logger.info(f"result中身: {result}")
 
         if not result:
             logger.warning(f"Gemini分析失敗(スキップ): {article.title}")
@@ -68,8 +64,5 @@ def analyze_articles(articles: list, batch_id: int) -> list:
         analyses_list.append(analyze)
 
         logger.info(f"Gemini分析完了: {article.title} (重要度: {result.get('importance', 0)})")
-    # analyze_articles 
-    for res in analyses_list:
-        logger.info(f"保存直前：ID={res.article_id} / 要約={res.ai_summary[:20]}...")
 
     return analyses_list

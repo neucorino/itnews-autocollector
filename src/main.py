@@ -38,12 +38,19 @@ def main():
         save_rankings = process_new_rankings(batch_id)
 
     # 通知対象決定
-    notify_articles = get_notification_targets()
+    notify_articles = get_notification_targets(batch_id)
+
+    if notify_articles is None: # 万が一 None が返ってきても大丈夫なように
+        notify_articles = []
+        
+    if not notify_articles:
+        logger.warning("通知対象の記事が0件でした。処理を終了します。")
+        return # ここで安全に止める
 
     logger.info(f"最終通知件数: {len(notify_articles)}件")
     
     # メール送信
-    send_daily_email()
+    send_daily_email(batch_id)
 
 if __name__ == "__main__":
     main()

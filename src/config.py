@@ -30,7 +30,7 @@ LOG_BACKUP_COUNT = 3
 # Gemini設定
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL_ID = "gemini-2.0-flash"
-TEMPERATURE = 0.1
+TEMPERATURE = 0.2
 
 
 #プロンプトのテンプレート

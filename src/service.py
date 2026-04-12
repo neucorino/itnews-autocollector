@@ -39,16 +39,18 @@ def process_new_rankings(batch_id):
     return db_manager.bulk_insert_rankings(ranked_articles)
 
 
-def get_notification_targets() -> list:
+def get_notification_targets(batch_id:int) -> list:
     """
     設定値に基づいて通知対象を絞り込み、リストを返す。
     過去N日・重要度しきい値以上から、重要度順で最大M件。
     """
+    batch_id = batch_id
     threshold = getattr(config, "IMPORTANCE_THRESHOLD", 7)
     lookback = getattr(config, "NOTIFICATION_LOOKBACK_DAYS", 7)
     max_count = getattr(config, "MAX_NOTIFICATION_COUNT", 5)
 
     targets = db_manager.fetch_notification_targets(
+        batch_id,
         min_importance=threshold,
         lookback_days=lookback,
         limit=max_count,
