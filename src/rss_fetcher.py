@@ -10,9 +10,7 @@ def fetch_rss(rss_url, source):
     feed = feedparser.parse(rss_url)
     articles = []
     if feed.bozo:
-        raise Exception("RSSの形式が壊れています")
-    else:
-        logger.info(f"{len(articles)} 件の記事取得")
+        raise Exception("RSSの形式が壊れています") 
 
     for entry in feed.entries:
         logger.info(f"記事取得: {entry.title}")
