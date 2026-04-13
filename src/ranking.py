@@ -24,9 +24,8 @@ GET_RANKED_ARTICLES_QUERY = """
 """
 
 
-def generate_rankings(batch_id:int):
+def generate_rankings(db_manager,batch_id:int):
     """重要度の高い記事をランキング形式で取得"""
-    db_manager = db.DatabaseManager()
     ranked_articles = db_manager.conn.execute(
         GET_RANKED_ARTICLES_QUERY
     ).fetchall()

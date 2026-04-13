@@ -12,4 +12,3 @@ def setup_logger():
             logging.StreamHandler()
         ]
     )
-    return logging.getLogger(__name__)
