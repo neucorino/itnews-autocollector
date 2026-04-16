@@ -1,5 +1,5 @@
 from my_utils import send_gmail
-from service import get_notification_targets
+from service import NewsService
 from datetime import datetime
 import config
 import logging
@@ -46,22 +46,20 @@ def build_email_body(articles):
     return "\n".join(lines)
 
 
-def send_daily_email(db_manager,batch_id:int):
+def send_daily_email(notify_articles,batch_id:int):
     """毎日決まった時間に呼び出される関数。重要記事をメールで送信する。"""
-    important_articles = get_notification_targets(db_manager,batch_id)
-
-    if not important_articles:
+    if not notify_articles:
         logger.info("重要記事なし。メールは送信しません。")
         return
 
     subject = (
         f"【ITニュース】過去{config.NOTIFICATION_LOOKBACK_DAYS}日・TOP{config.MAX_NOTIFICATION_COUNT} "
-        f"{len(important_articles)} 件 ({datetime.now().strftime('%Y-%m-%d')})"
+        f"{len(notify_articles)} 件 ({datetime.now().strftime('%Y-%m-%d')})"
     )
-    body = build_email_body(important_articles)
+    body = build_email_body(notify_articles)
 
     try:
         send_gmail(subject=subject, body=body)
-        logger.info(f"メール送信完了: {len(important_articles)} 件の重要記事")
+        logger.info(f"メール送信完了: {len(notify_articles)} 件の重要記事")
     except Exception as e:
         logger.exception(f"メール送信に失敗しました")

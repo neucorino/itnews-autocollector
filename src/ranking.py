@@ -23,23 +23,26 @@ GET_RANKED_ARTICLES_QUERY = """
     LIMIT 10
 """
 
+class RankingGenerator:
+    def __init__(self, db_manager):
+        self.db = db_manager
 
-def generate_rankings(db_manager,batch_id:int):
-    """重要度の高い記事をランキング形式で取得"""
-    ranked_articles = db_manager.conn.execute(
-        GET_RANKED_ARTICLES_QUERY
-    ).fetchall()
+    def generate_rankings(self, batch_id: int):
+        """重要度の高い記事をランキング形式で取得"""
+        ranked_articles = self.db.conn.execute(
+            GET_RANKED_ARTICLES_QUERY
+        ).fetchall()
 
-    rankings_to_save = []
-    for rank, article in enumerate(ranked_articles, start=1):
-       
-        rankings= Ranking(
-            article_id=article['article_id'],
-            analyses_id=article['analyses_id'],
-            batch_id=batch_id,
-            rank=rank
-        )
-        rankings_to_save.append(rankings)
+        rankings_to_save = []
+        for rank, article in enumerate(ranked_articles, start=1):
+        
+            rankings= Ranking(
+                article_id=article['article_id'],
+                analyses_id=article['analyses_id'],
+                batch_id=batch_id,
+                rank=rank
+            )
+            rankings_to_save.append(rankings)
 
-    logger.info(f"ランキングを生成してDBに保存しました。バッチID: {batch_id}")
-    return rankings_to_save
+        logger.info(f"ランキングを生成してDBに保存しました。バッチID: {batch_id}")
+        return rankings_to_save
