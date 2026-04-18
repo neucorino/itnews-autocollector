@@ -4,12 +4,18 @@ from models import ArticleAnalysis
 import config
 import logging
 import json
+import time
 
 # どのモジュールから出たログか識別する
 logger = logging.getLogger(__name__)
 
 #Gemini APIの呼び出しとプロンプトの設定
-def analyze_article_with_gemini(title: str, summary: str) -> dict:
+def analyze_article_with_gemini(
+    title: str, 
+    summary: str, 
+    max_retries: int = config.GEMINI_MAX_RETRIES
+    ) -> dict:
+
     logger.info("Gemini分析開始")
 
     """記事のタイトルと要約をGemini APIに送信して分析結果を辞書で返す"""
@@ -17,24 +23,33 @@ def analyze_article_with_gemini(title: str, summary: str) -> dict:
     
     system_instruction = config.SYSTEM_INSTRUCTION
 
-    try:
-        client = genai.Client(api_key=config.GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model=config.MODEL_ID,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json", 
-                temperature=config.TEMPERATURE)
-        )
-        raw_text = response.text # Gemini APIからの生のテキストレスポンス
-        logger.info("Gemini APIからのレスポンスを受信")
-        result = json.loads(raw_text) # JSON形式のテキストを辞書に変換
-        return result
-        
-    except Exception as e:
-        logger.exception(f"Gemini APIへのリクエストに失敗しました")
-        return None
+    for attempt in range(max_retries):
+        try:
+            client = genai.Client(api_key=config.GEMINI_API_KEY)
+            response = client.models.generate_content(
+                model=config.MODEL_ID,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json", 
+                    temperature=config.TEMPERATURE)
+            )
+            raw_text = response.text # Gemini APIからの生のテキストレスポンス
+            logger.info("Gemini APIからのレスポンスを受信")
+            result = json.loads(raw_text) # JSON形式のテキストを辞書に変換
+            return result
+            
+        except Exception as e:
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                wait_time = config.GEMINI_SLEEP_SECONDS * (attempt + 1)
+                logger.warning(f"429エラー。{wait_time}秒後にリトライ ({attempt+1}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                logger.exception(f"Gemini APIへのリクエストに失敗しました")
+                return None
+
+    logger.error(f"最大リトライ回数到達: {title}")
+    return None
 
 
 # Gemini 分析
@@ -43,7 +58,9 @@ def analyze_articles(articles: list, batch_id: int) -> list:
     分析に失敗した記事はスキップする。
     """
     analyses_list = []
-    for article in articles:
+    target_articles = articles[:config.MAX_ARTICLES_PER_BATCH]
+
+    for i, article in enumerate(target_articles):
         # articleオブジェクトからidを取得（ここが article_id になる）
         current_article_id = getattr(article, 'id', None) 
         result = analyze_article_with_gemini(article.title, article.summary)
@@ -64,5 +81,9 @@ def analyze_articles(articles: list, batch_id: int) -> list:
         analyses_list.append(analyze)
 
         logger.info(f"Gemini分析完了: {article.title} (重要度: {result.get('importance', 0)})")
+
+        # Gemini APIへのリクエスト間に少し待機する（連続リクエストを避けるため）
+        if i < len(target_articles) - 1:
+            time.sleep(config.GEMINI_SLEEP_SECONDS)
 
     return analyses_list

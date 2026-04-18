@@ -85,7 +85,10 @@ MY_PASSWORD = os.getenv('GMAIL_PASS')
 
 # ニュース取得のルール
 LATEST_NEWS_LIMIT = 30       # 最新ニュース取得件数
-IMPORTANCE_THRESHOLD = 5    # 通知対象にする重要度のしきい値
+IMPORTANCE_THRESHOLD = 6    # 通知対象にする重要度のしきい値
+MAX_ARTICLES_PER_BATCH = 30   # 一度に処理する記事の上限
+GEMINI_SLEEP_SECONDS = 5    # リクエスト間のwait時間
+GEMINI_MAX_RETRIES = 3        # 429エラー時の最大リトライ回数
 
 
 # 通知設定
