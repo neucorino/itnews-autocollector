@@ -119,6 +119,7 @@ v2.0  運用・拡張（予定）
 | google-genai | 1.62.0 | Gemini API クライアント |
 | tenacity | 9.1.2 | リトライ処理 |
 | tqdm | 4.67.3 | 進捗表示 |
+| websockets | 16.0 | WebSocket通信 |
  
 その他の標準ライブラリ（`sqlite3` / `smtplib` / `logging`）は Python 付属のため別途インストール不要です。
 
