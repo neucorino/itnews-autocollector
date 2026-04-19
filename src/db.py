@@ -22,6 +22,29 @@ class DatabaseManager:
         logger.info(f"DB接続を開始: {db_path}")
         self.create_tables() # インスタンス化した時にテーブルがなければ作る
     
+    def __enter__(self) -> "DatabaseManager":
+        """context manager entry point"""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """context manager exit point - コネクション安全にクローズ"""
+        try:
+            self.conn.close()
+            logger.info("DB接続を閉じました")
+        except Exception as e:
+            logger.error(f"DB接続クローズ時にエラー: {e}")
+        
+        # 例外を伝播させる
+        if exc_type is not None:
+            return False
+        return None
+    
+    def close(self) -> None:
+        """明示的にコネクションを閉じる"""
+        if self.conn:
+            self.conn.close()
+            logger.info("DB接続を明示的に閉じました")
+    
     
     # テーブルを作成するメソッド（操作）
     def create_tables(self) -> None:
@@ -89,9 +112,15 @@ class DatabaseManager:
     def start_new_batch(self) -> int:
         logger.info("バッチを開始します...")
         try:
-            res = self.conn.execute(queries.START_NEW_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'running'))
+            params = {
+                "started_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "status": "running"
+            }
+            res = self.conn.execute(queries.START_NEW_BATCH, params)
             self.conn.commit()
-            return res.lastrowid
+            batch_id = res.lastrowid
+            logger.info(f"バッチ開始: batch_id={batch_id}")
+            return batch_id
         except Exception as e:
             logger.exception(f"バッチ開始に失敗")
             raise DatabaseError(f"バッチの開始に失敗しました: {e}") from e
@@ -99,13 +128,21 @@ class DatabaseManager:
 
     # バッチ終了を記録するメソッド（操作）
     def finish_batch(self, batch_id: int, status: str, count: int) -> None:
-        """バッチの結果を更新する"""
+        """バッチの結果を更新する。バッチ完全性を確保するため、
+        最後に必ずこのメソッドが呼ばれて status を記録することが重要。
+        """
         try:
+            params = {
+                "ended_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "status": status,
+                "new_articles_count": count,
+                "id": batch_id
+            }
             with self.conn:
-                self.conn.execute(queries.FINISH_BATCH, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, count, batch_id))
-            logger.info(f"バッチID:{batch_id} をステータス:{status} で完了しました。")
+                self.conn.execute(queries.FINISH_BATCH, params)
+            logger.info(f"✅ バッチID:{batch_id} を完了 (status={status}, articles={count})")
         except Exception as e:
-            logger.exception(f"バッチ終了に失敗")
+            logger.exception(f"バッチ終了に失敗 (batch_id={batch_id})")
             raise DatabaseError(f"バッチの終了に失敗しました: {e}") from e
 
 

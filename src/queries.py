@@ -98,6 +98,7 @@ GET_NOTIFICATION_TARGETS = """
     INNER JOIN articles a ON r.article_id = a.id
     INNER JOIN article_analyses aa ON r.analyses_id = aa.id
     WHERE r.batch_id = :batch_id
+      AND aa.importance >= :min_importance
     ORDER BY r.rank ASC
     LIMIT :limit
 """
