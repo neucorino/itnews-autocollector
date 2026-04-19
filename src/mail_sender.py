@@ -1,28 +1,29 @@
+from typing import List, Dict, Any
 from my_utils import send_gmail
 from service import NewsService
 from datetime import datetime
 import config
+import constants
+from exceptions import EmailSendError
 import logging
 
 logger = logging.getLogger(__name__)
 
-def build_email_body(articles):
+def build_email_body(articles: List[Dict[str, Any]]) -> str:
     """ランキング形式のメール本文を組み立てる"""
 
     # 上位5件に制限
     top_articles = articles[:5]
 
-    rank_emojis = ["🥇", "🥈", "🥉", "📌", "📌"]
-
     lines = [
-        "🧠 ITニュースダイジェスト（直近7日）",
+        f"🧠 ITニュースダイジェスト（直近{config.NOTIFICATION_LOOKBACK_DAYS}日）",
         "",
         "---",
         "",
     ]
 
     for i, a in enumerate(top_articles):
-        rank = rank_emojis[i]
+        rank = constants.EMAIL_RANK_EMOJIS[i] if i < len(constants.EMAIL_RANK_EMOJIS) else "📌"
 
         summary = a["ai_summary"].replace("\n", " ")
 
@@ -32,21 +33,19 @@ def build_email_body(articles):
             f"{a['title']}",
             f"→ {summary}",
             f"→ {a['url']}",
-            "----------------------------------",
+            constants.EMAIL_SEPARATOR,
             "",
         ]
 
-    # 傾向（仮：あとでGeminiで生成してもOK）
+    # 傾向
     lines += [
-        "📌 今日の傾向",
-        "・AI関連ニュースが多め",
-        "・大手テック企業の動きが活発",
-    ]
+        constants.EMAIL_TREND_SECTION_TITLE,
+    ] + constants.EMAIL_TREND_ITEMS
 
     return "\n".join(lines)
 
 
-def send_daily_email(notify_articles,batch_id:int):
+def send_daily_email(notify_articles: List[Dict[str, Any]], batch_id: int) -> None:
     """毎日決まった時間に呼び出される関数。重要記事をメールで送信する。"""
     if not notify_articles:
         logger.info("重要記事なし。メールは送信しません。")
@@ -61,5 +60,6 @@ def send_daily_email(notify_articles,batch_id:int):
     try:
         send_gmail(subject=subject, body=body)
         logger.info(f"メール送信完了: {len(notify_articles)} 件の重要記事")
-    except Exception as e:
+    except EmailSendError as e:
         logger.exception(f"メール送信に失敗しました")
+        raise

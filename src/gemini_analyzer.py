@@ -1,3 +1,5 @@
+from typing import Optional, Dict, Any, List
+from exceptions import GeminiAnalysisError
 from google import genai
 from google.genai import types
 from models import ArticleAnalysis
@@ -14,7 +16,7 @@ def analyze_article_with_gemini(
     title: str, 
     summary: str, 
     max_retries: int = config.GEMINI_MAX_RETRIES
-    ) -> dict:
+    ) -> Optional[Dict[str, Any]]:
 
     logger.info("Gemini分析開始")
 
@@ -49,11 +51,11 @@ def analyze_article_with_gemini(
                 return None
 
     logger.error(f"最大リトライ回数到達: {title}")
-    return None
+    raise GeminiAnalysisError(f"Gemini分析失敗（最大リトライ回数到達）: {title}")
 
 
 # Gemini 分析
-def analyze_articles(articles: list, batch_id: int) -> list:
+def analyze_articles(articles: List[Article], batch_id: int) -> List[ArticleAnalysis]:
     """記事リストをGeminiで分析し、解析結果の辞書リストを返す。
     分析に失敗した記事はスキップする。
     """

@@ -1,3 +1,5 @@
+from typing import List
+from exceptions import RSSFetchError
 import feedparser
 from models import Article
 import config
@@ -5,12 +7,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def fetch_rss(rss_url, source):
+def fetch_rss(rss_url: str, source: str) -> List[Article]:
     logger.info(f"RSS取得開始: {rss_url}")
     feed = feedparser.parse(rss_url)
     articles = []
     if feed.bozo:
-        raise Exception("RSSの形式が壊れています") 
+        raise RSSFetchError(f"RSSの形式が壊れています: {rss_url}") 
 
     for entry in feed.entries:
         logger.info(f"記事取得: {entry.title}")

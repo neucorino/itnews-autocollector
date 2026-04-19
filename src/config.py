@@ -94,3 +94,44 @@ GEMINI_MAX_RETRIES = 3        # 429エラー時の最大リトライ回数
 # 通知設定
 NOTIFICATION_LOOKBACK_DAYS = 7   # 通知対象とする記事の公開日のさかのぼり日数
 MAX_NOTIFICATION_COUNT = 5   # 一度に通知する最大件数
+
+
+def validate_config() -> None:
+    """
+    設定値の妥当性を検証。エラーが見つかった場合は ConfigValidationError を raise。
+    """
+    from exceptions import ConfigValidationError
+    
+    # 必須環境変数チェック
+    required_env = ["GEMINI_API_KEY", "GMAIL_USER", "GMAIL_PASS"]
+    for env_name in required_env:
+        if not os.getenv(env_name):
+            raise ConfigValidationError(f"必須環境変数が未設定です: {env_name}")
+    
+    # 数値設定の範囲チェック
+    if not (1 <= IMPORTANCE_THRESHOLD <= 10):
+        raise ConfigValidationError(
+            f"IMPORTANCE_THRESHOLD は 1-10 の範囲である必要があります (現在値: {IMPORTANCE_THRESHOLD})"
+        )
+    
+    if MAX_NOTIFICATION_COUNT <= 0:
+        raise ConfigValidationError(
+            f"MAX_NOTIFICATION_COUNT は正数である必要があります (現在値: {MAX_NOTIFICATION_COUNT})"
+        )
+    
+    if NOTIFICATION_LOOKBACK_DAYS <= 0:
+        raise ConfigValidationError(
+            f"NOTIFICATION_LOOKBACK_DAYS は正数である必要があります (現在値: {NOTIFICATION_LOOKBACK_DAYS})"
+        )
+    
+    if GEMINI_MAX_RETRIES <= 0:
+        raise ConfigValidationError(
+            f"GEMINI_MAX_RETRIES は正数である必要があります (現在値: {GEMINI_MAX_RETRIES})"
+        )
+    
+    # ディレクトリ存在確認
+    if not BASE_DIR.exists():
+        raise ConfigValidationError(f"BASE_DIR が存在しません: {BASE_DIR}")
+    
+    # ログディレクトリ作成
+    LOG_FILE.parent.mkdir(exist_ok=True, parents=True)

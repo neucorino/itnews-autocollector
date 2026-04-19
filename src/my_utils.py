@@ -1,3 +1,5 @@
+from typing import Optional
+from exceptions import EmailSendError
 import smtplib
 from email.mime.text import MIMEText
 from email.utils import formatdate
@@ -6,7 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def send_gmail(subject, body, to_address=None):
+def send_gmail(subject: str, body: str, to_address: Optional[str] = None) -> None:
     """
     どこからでもメールを送れる共通関数
     """
@@ -26,3 +28,4 @@ def send_gmail(subject, body, to_address=None):
         logger.info(f"📧 メール送信成功: {subject}")
     except Exception as e:
         logger.exception(f"❌ メール送信エラー")
+        raise EmailSendError(f"メール送信に失敗しました: {subject}") from e
