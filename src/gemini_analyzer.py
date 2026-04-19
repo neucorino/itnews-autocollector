@@ -2,7 +2,7 @@ from typing import Optional, Dict, Any, List
 from exceptions import GeminiAnalysisError
 from google import genai
 from google.genai import types
-from models import ArticleAnalysis
+from models import Article,ArticleAnalysis
 import config
 import logging
 import json
