@@ -2,10 +2,10 @@ import logging
 import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List
-import config
-import models
-import queries
-from exceptions import DatabaseError
+from . import config
+from . import models 
+from . import queries
+from .exceptions import DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -150,3 +150,23 @@ class DatabaseManager:
             return [dict(r) for r in rows]
         except Exception as e:
             raise DatabaseError(f"通知対象の取得に失敗しました: {e}") from e
+
+    # --- API用の追加クエリもここに実装していく予定 ---
+    def get_news_from_db(self):
+        # news.db は実際のファイル名に合わせてね
+        conn = sqlite3.connect(config.DB_PATH)
+        # 辞書形式で結果を取得できるように設定
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        try:
+            # 最新の10件を取得
+            cursor.execute(queries.GET_LATEST_ARTICLES)
+            rows = cursor.fetchall()
+            # Rowオブジェクトを辞書のリストに変換
+            return [dict(row) for row in rows]
+        except sqlite3.Error as e:
+            logger.error(f"Database error: {e}")
+            return []
+        finally:
+            conn.close()

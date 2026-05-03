@@ -119,3 +119,11 @@ GET_RANKED_ARTICLES = """
     ORDER BY aa.importance DESC, a.published_at DESC
     LIMIT 10
 """
+
+# API用のクエリ
+GET_LATEST_ARTICLES = """
+    SELECT id, title, url, summary, published_at, source 
+    FROM articles 
+    ORDER BY id DESC 
+    LIMIT 10
+"""

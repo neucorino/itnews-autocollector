@@ -95,6 +95,11 @@ GEMINI_MAX_RETRIES = 3        # 429エラー時の最大リトライ回数
 NOTIFICATION_LOOKBACK_DAYS = 7   # 通知対象とする記事の公開日のさかのぼり日数
 MAX_NOTIFICATION_COUNT = 5   # 一度に通知する最大件数
 
+# FastAPI設定
+API_TITLE = "IT News Live API"
+API_DESCRIPTION = "ITニュース収集システムのプロトタイプAPI（ポート8080稼働中）"
+API_VERSION = "1.2.0"
+
 
 def validate_config() -> None:
     """
