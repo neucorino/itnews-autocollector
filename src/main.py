@@ -1,11 +1,11 @@
 import logging
-import config
-from rss_fetcher import fetch_rss
-from db import DatabaseManager
-from service import NewsService
-from mail_sender import send_daily_email
-from exceptions import NewsSystemException, ConfigValidationError
-from logger import setup_logger
+from src import config
+from src.rss_fetcher import fetch_rss
+from src.db import DatabaseManager
+from src.service import NewsService
+from src.mail_sender import send_daily_email
+from src.exceptions import NewsSystemException, ConfigValidationError
+from src.logger import setup_logger
 
 setup_logger()
 logger = logging.getLogger(__name__)

@@ -1,8 +1,8 @@
 from typing import List
-from exceptions import RSSFetchError
+from src.exceptions import RSSFetchError
 import feedparser
-from models import Article
-import config
+from src.models import Article
+from src import config
 import logging
 
 logger = logging.getLogger(__name__)

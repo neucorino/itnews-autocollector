@@ -1,14 +1,14 @@
 from typing import List
-import db
-from models import Ranking
-import config
-import queries
+from src.db import DatabaseManager
+from src.models import Ranking
+from src import config
+from src import queries
 import logging
 
 logger = logging.getLogger(__name__)
 
 class RankingGenerator:
-    def __init__(self, db_manager: "db.DatabaseManager") -> None:
+    def __init__(self, db_manager: "DatabaseManager") -> None:
         self.db = db_manager
 
     def generate_rankings(self, batch_id: int) -> List[Ranking]:

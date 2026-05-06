@@ -1,6 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
-from config import LOG_FILE, LOG_MAX_BYTES, LOG_BACKUP_COUNT
+from src.config import LOG_FILE, LOG_MAX_BYTES, LOG_BACKUP_COUNT
 
 def setup_logger():
     """ロギングを設定して、loggerオブジェクトを返す"""

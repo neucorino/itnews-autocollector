@@ -2,10 +2,10 @@ import logging
 import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List
-from . import config
-from . import models 
-from . import queries
-from .exceptions import DatabaseError
+from src import config
+from src import models 
+from src import queries
+from src.exceptions import DatabaseError
 
 logger = logging.getLogger(__name__)
 

@@ -1,10 +1,10 @@
 from typing import List, Dict, Any
-from my_utils import send_gmail
-from service import NewsService
+from src.my_utils import send_gmail
+from src.service import NewsService
 from datetime import datetime
-import config
-import constants
-from exceptions import EmailSendError
+from src import config
+from src import constants
+from src.exceptions import EmailSendError
 import logging
 
 logger = logging.getLogger(__name__)

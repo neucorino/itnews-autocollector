@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from src.exceptions import ConfigValidationError
 
 # 環境変数の読み込み
 load_dotenv()
@@ -105,7 +106,6 @@ def validate_config() -> None:
     """
     設定値の妥当性を検証。エラーが見つかった場合は ConfigValidationError を raise。
     """
-    from exceptions import ConfigValidationError
     
     # 必須環境変数チェック
     required_env = ["GEMINI_API_KEY", "GMAIL_USER", "GMAIL_PASS"]

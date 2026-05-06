@@ -1,9 +1,9 @@
 import logging
 from typing import List
 from fastapi import FastAPI, Depends
-from .models import Article
-from .config import API_TITLE, API_DESCRIPTION, API_VERSION
-from .db import DatabaseManager
+from src.models import Article
+from src.config import API_TITLE, API_DESCRIPTION, API_VERSION
+from src.db import DatabaseManager
 
 # ログの設定
 logger = logging.getLogger(__name__)

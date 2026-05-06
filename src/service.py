@@ -1,16 +1,16 @@
 from typing import List, Dict, Any, Optional
-import config
-import db
-import rss_fetcher
-import gemini_analyzer
-from ranking import RankingGenerator
-from models import Article, ArticleAnalysis
+from src import config
+from src.db import DatabaseManager
+from src import rss_fetcher
+from src import gemini_analyzer
+from src.ranking import RankingGenerator
+from src.models import Article, ArticleAnalysis
 import logging
 
 logger = logging.getLogger(__name__)
 
 class NewsService:
-    def __init__(self, db_manager: "db.DatabaseManager") -> None:
+    def __init__(self, db_manager: "DatabaseManager") -> None:
         self.db = db_manager
         self.ranking = RankingGenerator(db_manager)
 

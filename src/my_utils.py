@@ -1,9 +1,9 @@
 from typing import Optional
-from exceptions import EmailSendError
+from src.exceptions import EmailSendError
 import smtplib
 from email.mime.text import MIMEText
 from email.utils import formatdate
-import config
+from src import config
 import logging
 
 logger = logging.getLogger(__name__)
