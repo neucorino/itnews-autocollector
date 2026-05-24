@@ -152,8 +152,7 @@ class DatabaseManager:
             raise DatabaseError(f"通知対象の取得に失敗しました: {e}") from e
 
     # --- API用の追加クエリもここに実装していく予定 ---
-    def get_news_from_db(self):
-        # news.db は実際のファイル名に合わせてね
+    def get_news_from_db(self,params:dict):
         conn = sqlite3.connect(config.DB_PATH)
         # 辞書形式で結果を取得できるように設定
         conn.row_factory = sqlite3.Row
@@ -161,12 +160,12 @@ class DatabaseManager:
         
         try:
             # 最新の10件を取得
-            cursor.execute(queries.GET_LATEST_ARTICLES)
+            cursor.execute(queries.GET_NOTIFICATION_TARGETS, params)
             rows = cursor.fetchall()
             # Rowオブジェクトを辞書のリストに変換
             return [dict(row) for row in rows]
         except sqlite3.Error as e:
             logger.error(f"Database error: {e}")
-            return []
+            raise e
         finally:
             conn.close()

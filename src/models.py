@@ -1,5 +1,7 @@
 from dataclasses import dataclass,asdict,field
 from datetime import datetime
+from pydantic import BaseModel
+from typing import List, Optional
 
 
 # ニュース記事を表すデータクラス
@@ -49,3 +51,21 @@ class Ranking:
 
     def to_dict(self):
         return asdict(self)
+
+
+#APIで画面に表示させる専用のモデル
+class RankedArticleResponse(BaseModel):
+    id: int
+    title: str
+    url: str
+    source: str
+    ai_summary: Optional[str] = None
+    importance: Optional[int] = None
+    category: Optional[str] = None
+    rank: Optional[int] = None
+
+
+# /news で返すリスト全体の設計図（件数なども含めると親切です）
+class NewsListResponse(BaseModel):
+    total_count: int
+    rankedresponses: List[RankedArticleResponse]
