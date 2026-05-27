@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from src.models import NewsListResponse
-from src.config import API_TITLE, API_DESCRIPTION, API_VERSION
+from src import config
 from src.db import DatabaseManager
 
 # ログの設定
@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 # FastAPIのインスタンス作成
 app = FastAPI(
-    title=API_TITLE,
-    description=API_DESCRIPTION,
-    version=API_VERSION
+    title=config.API_TITLE,
+    description=config.API_DESCRIPTION,
+    version=config.API_VERSION
 )
 """CORSの設定"""
 app.add_middleware(
@@ -35,10 +35,10 @@ def read_root():
 @app.get("/news",response_model=NewsListResponse, tags=["News"])
 def get_news(
     skip: int = 0,
-    limit: int = 20,      
-    category: str | None = None,             
+    limit: int = 20,               
     min_importance: int = 0,
     batch_id: int = 1,
+    lookback_days: int = 7,
     db: DatabaseManager = Depends(get_db)
 ):
     """DBから最新のニュースを取得して返却"""
@@ -47,9 +47,9 @@ def get_news(
         params = {
             "min_importance": min_importance,
             "limit": limit,
-            "category": category,  # カテゴリフィルタを追加
             "batch_id": batch_id,  # バッチIDを追加
-            "skip": skip
+            "skip": skip,
+            "lookback_days": lookback_days
         }
         news_list = db.get_news_from_db(params)
         

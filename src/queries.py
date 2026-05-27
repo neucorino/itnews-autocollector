@@ -99,6 +99,7 @@ GET_NOTIFICATION_TARGETS = """
     INNER JOIN article_analyses aa ON r.analyses_id = aa.id
     WHERE r.batch_id = :batch_id
       AND aa.importance >= :min_importance
+      AND a.published_at >= datetime('now', '-' || :lookback_days || ' days')
     ORDER BY r.rank ASC
     LIMIT :limit
 """
@@ -117,13 +118,13 @@ GET_RANKED_ARTICLES = """
         GROUP BY article_id
     )
     ORDER BY aa.importance DESC, a.published_at DESC
-    LIMIT 10
+    LIMIT :ranking_limit
 """
 
-# API用のクエリ
-GET_LATEST_ARTICLES = """
-    SELECT id, title, url, summary, published_at, source 
-    FROM articles 
-    ORDER BY id DESC 
-    LIMIT 10
-"""
+# # API用のクエリ
+# GET_LATEST_ARTICLES = """
+#     SELECT id, title, url, summary, published_at, source 
+#     FROM articles 
+#     ORDER BY id DESC 
+#     LIMIT :limit
+# """

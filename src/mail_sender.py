@@ -52,7 +52,7 @@ def send_daily_email(notify_articles: List[Dict[str, Any]], batch_id: int) -> No
         return
 
     subject = (
-        f"【ITニュース】過去{config.NOTIFICATION_LOOKBACK_DAYS}日・TOP{config.MAX_NOTIFICATION_COUNT} "
+        f"【ITニュース】過去{config.NOTIFICATION_LOOKBACK_DAYS}日・TOP{config.NOTIFICATION_LIMIT} "
         f"{len(notify_articles)} 件 ({datetime.now().strftime('%Y-%m-%d')})"
     )
     body = build_email_body(notify_articles)

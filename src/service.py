@@ -44,28 +44,34 @@ class NewsService:
         self.db.bulk_insert_rankings(ranked_articles)
         return True
 
-
-    def get_notification_targets(self, batch_id: int) -> List[Dict[str, Any]]:
+    # 通知対象の絞り込みと取得
+    def get_notification_targets(
+            self, 
+            batch_id: int, 
+            lookback_days: int = None, 
+            limit: int = None, 
+            min_importance: int = None
+        ) -> List[Dict[str, Any]]:
         """
         設定値に基づいて通知対象を絞り込み、リストを返す。
         過去N日・重要度しきい値以上から、重要度順で最大M件。
         """
         targets = self.db.fetch_notification_targets(
             batch_id,
-            min_importance=config.IMPORTANCE_THRESHOLD,
-            lookback_days=config.NOTIFICATION_LOOKBACK_DAYS,
-            limit=config.MAX_NOTIFICATION_COUNT,
+            min_importance=min_importance if min_importance is not None else config.IMPORTANCE_THRESHOLD,
+            lookback_days=lookback_days if lookback_days is not None else config.NOTIFICATION_LOOKBACK_DAYS,
+            limit=limit if limit is not None else config.NOTIFICATION_LIMIT,
         )
         for row in targets:
             logger.info(f"title: {row['title']}, ai_summary: {row['ai_summary'][:30]}")
 
         if not targets:
             logger.info(
-                f"通知対象の記事はありませんでした（過去{config.NOTIFICATION_LOOKBACK_DAYS}日・重要度{config.IMPORTANCE_THRESHOLD}以上・最大{config.MAX_NOTIFICATION_COUNT}件）。"
+                f"通知対象の記事はありませんでした（過去{config.NOTIFICATION_LOOKBACK_DAYS}日・重要度{config.IMPORTANCE_THRESHOLD}以上・最大{config.NOTIFICATION_LIMIT}件）。"
             )
         else:
             titles = [t["title"] for t in targets]
             logger.info(
-                f"通知対象確定: {len(targets)}件（過去{config.NOTIFICATION_LOOKBACK_DAYS}日・重要度{config.IMPORTANCE_THRESHOLD}以上・最大{config.MAX_NOTIFICATION_COUNT}件） / {titles}"
+                f"通知対象確定: {len(targets)}件（過去{config.NOTIFICATION_LOOKBACK_DAYS}日・重要度{config.IMPORTANCE_THRESHOLD}以上・最大{config.NOTIFICATION_LIMIT}件） / {titles}"
             )
         return targets

@@ -94,7 +94,9 @@ GEMINI_MAX_RETRIES = 3        # 429エラー時の最大リトライ回数
 
 # 通知設定
 NOTIFICATION_LOOKBACK_DAYS = 7   # 通知対象とする記事の公開日のさかのぼり日数
-MAX_NOTIFICATION_COUNT = 5   # 一度に通知する最大件数
+DEFAULT_MIN_IMPORTANCE = 6    # 重要度6以上の記事を対象にする
+RANKING_LIMIT = 10            # 上位10件を取得する
+NOTIFICATION_LIMIT = 5   # 一度に通知する最大件数
 
 # FastAPI設定
 API_TITLE = "IT News Live API"
@@ -119,9 +121,9 @@ def validate_config() -> None:
             f"IMPORTANCE_THRESHOLD は 1-10 の範囲である必要があります (現在値: {IMPORTANCE_THRESHOLD})"
         )
     
-    if MAX_NOTIFICATION_COUNT <= 0:
+    if NOTIFICATION_LIMIT <= 0:
         raise ConfigValidationError(
-            f"MAX_NOTIFICATION_COUNT は正数である必要があります (現在値: {MAX_NOTIFICATION_COUNT})"
+            f"NOTIFICATION_LIMIT は正数である必要があります (現在値: {NOTIFICATION_LIMIT})"
         )
     
     if NOTIFICATION_LOOKBACK_DAYS <= 0:

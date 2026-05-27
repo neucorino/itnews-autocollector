@@ -129,24 +129,32 @@ class DatabaseManager:
         except Exception as e:
             raise DatabaseError(f"ランキングの保存に失敗しました: {e}") from e
 
-    # ── 通知 ──────────────────────────────────────────────────
+    # ── 通知対象の取得 ─────────────────────────────────────────
 
     def fetch_notification_targets(
         self,
         batch_id: int,
-        min_importance: int = config.IMPORTANCE_THRESHOLD,
-        lookback_days: int = config.NOTIFICATION_LOOKBACK_DAYS,
-        limit: int = config.MAX_NOTIFICATION_COUNT,
-    ) -> List[Dict[str, Any]]:
+        lookback_days: int = None, 
+        limit: int = None, 
+        min_importance: int = None
+    ):
+        
+        limit = limit if limit is not None else getattr(config, 'NOTIFICATION_LIMIT', 5)
+        lookback_days = lookback_days if lookback_days is not None else getattr(config, 'NOTIFICATION_LOOKBACK_DAYS', 7)
+        min_importance = min_importance if min_importance is not None else getattr(config, 'IMPORTANCE_THRESHOLD', 6)
+
+        sql = queries.GET_NOTIFICATION_TARGETS
+
         """重要度・期間フィルタを適用し、通知対象記事を取得する。"""
         params = {
             "batch_id": batch_id,
             "min_importance": min_importance,
-            "limit": int(limit),
+            "lookback_days": lookback_days,
+            "limit": limit,
         }
         try:
             with self.conn:
-                rows = self.conn.execute(queries.GET_NOTIFICATION_TARGETS, params).fetchall()
+                rows = self.conn.execute(sql, params).fetchall()
             return [dict(r) for r in rows]
         except Exception as e:
             raise DatabaseError(f"通知対象の取得に失敗しました: {e}") from e
