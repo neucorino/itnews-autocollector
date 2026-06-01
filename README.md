@@ -2,15 +2,13 @@
 
 # IT News Auto-Collector & Delivery System
 
-**Version 1.1.1** — レイヤード設計、依存注入、および高度なエラーハンドリングを導入し、保守性と堅牢性を大幅に向上させたエンタープライズ志向の自律型バッチシステム
-
-
-## 使用技術一覧
+**Version 1.2.0** — レイヤード設計・依存注入・堅牢なエラーハンドリングに加え、FastAPI による REST API 機能を統合したエンタープライズ志向の自律型バッチシステム
 
 <p style="display: inline">
   <img src="https://img.shields.io/badge/-Python-F2C63C.svg?logo=python&style=for-the-badge">
   <img src="https://img.shields.io/badge/-SQLite-003B57.svg?logo=sqlite&style=for-the-badge&logoColor=white">
   <img src="https://img.shields.io/badge/-Google%20Gemini-8E75B2.svg?logo=googlegemini&style=for-the-badge&logoColor=white">
+  <img src="https://img.shields.io/badge/-FastAPI-009688.svg?logo=fastapi&style=for-the-badge&logoColor=white">
   <img src="https://img.shields.io/badge/-Linux-FCC624.svg?logo=linux&style=for-the-badge&logoColor=black">
 </p>
 
@@ -20,27 +18,26 @@
 
 1. [はじめに](#はじめに)
 2. [プロジェクトについて](#プロジェクトについて)
-3. [ビジネス上の価値](#ビジネス上の価値)
-4. [バージョン履歴と改善点](#バージョン履歴と改善点)
-5. [環境](#環境)
-6. [アーキテクチャ](#アーキテクチャ)
-7. [工夫した点・アピールポイント](#工夫した点アピールポイント)
-8. [リポジトリ構成](#リポジトリ構成)
-9. [セットアップと実行](#セットアップと実行)
-10. [運用イメージ](#運用イメージ)
-11. [今後の拡張例（v2.0 予定）](#今後の拡張例v20-予定)
-12. [トラブルシューティング](#トラブルシューティング)
-13. [ライセンス・連絡](#ライセンス連絡)
+3. [運用ワークフロー](#運用ワークフロー)
+4. [ビジネス上の価値](#ビジネス上の価値)
+5. [バージョン履歴と改善点](#バージョン履歴と改善点)
+6. [環境](#環境)
+7. [アーキテクチャ](#アーキテクチャ)
+8. [工夫した点・アピールポイント](#工夫した点アピールポイント)
+9. [リポジトリ構成](#リポジトリ構成)
+10. [セットアップと実行](#セットアップと実行)
+11. [トラブルシューティング](#トラブルシューティング)
+12. [ライセンス・連絡](#ライセンス連絡)
 
 ---
 
 ## はじめに
 
-**バックエンド寄りの Python 製オートメーション**として公開しているポートフォリオ用リポジトリです。マネージドクラウドに縛られない **自ホストで完結する設計** と、**LLM を業務フローに組み込んだ処理** を示す目的でまとめています。
+**バックエンド寄りの Python 製オートメーション**として公開しているポートフォリオ用リポジトリです。マネージドクラウドに縛られない **自ホストで完結する設計** と、**LLM を業務フローに組み込んだ処理**、さらに **FastAPI による REST API 層の追加** を示す目的でまとめています。
 
 | 対象者 | 参照箇所 |
 |--------|----------|
-| **採用・発注担当** | [ビジネス上の価値](#ビジネス上の価値) → [v1.0 からの改善点](#v10-からの改善点v11) → [工夫した点・アピールポイント](#工夫した点アピールポイント) → [環境](#環境) |
+| **採用・発注担当** | [ビジネス上の価値](#ビジネス上の価値) → [バージョン履歴](#バージョン履歴と改善点) → [工夫した点・アピールポイント](#工夫した点アピールポイント) → [環境](#環境) |
 | **クライアント（非エンジニア）** | [プロジェクトについて](#プロジェクトについて) → [ビジネス上の価値](#ビジネス上の価値) → [運用イメージ](#運用イメージ) |
 | **開発者・共同作業者** | [リポジトリ構成](#リポジトリ構成) → [セットアップと実行](#セットアップと実行) → [トラブルシューティング](#トラブルシューティング) |
 
@@ -48,18 +45,34 @@
 
 ## プロジェクトについて
 
-複数の IT ニュースソース（RSS）から記事を **自動取得** し、**Google Gemini API** で要約・重要度スコア・技術カテゴリの付与を行います。取得した記事を SQLite に蓄積し、**期間内トップ記事のランキング** を生成したうえで、しきい値を超えた記事のみ **Gmail（SMTP）で通知** します。人手による巡回と取捨選択を減らし、**「読むべき記事」が分かる状態** へ変換するパイプラインです。
+複数の IT ニュースソース（RSS）から記事を **自動取得** し、**Google Gemini API** で要約・重要度スコア・技術カテゴリの付与を行います。取得した記事を SQLite に蓄積し、**期間内トップ記事のランキング** を生成したうえで、しきい値を超えた記事のみ **Gmail（SMTP）で通知** します。v1.2.0 では **FastAPI による REST API** を追加し、バッチ処理と並行して蓄積データを外部から取得できる構造へと進化しています。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
 ---
+## 運用ワークフロー
+
+### システム概要(System Overview)
+1. 指定時刻にバッチが起動する。
+2. RSS から新規記事を取り込み、未分析記事を Gemini で処理する。
+3. ランキングを更新し、通知条件を満たす記事があればメールを送る。
+4. API サーバーを常時起動しておくことで、蓄積されたランキング・通知候補を REST 経由でいつでも取得できる。
+5. ログファイルで成功・失敗を追跡する。
+
+## ワークフロー
+- 定期実行 (Scheduler): cronによるバッチ処理
+- 処理パイプライン: RSS取得 → SQLite保存 → Gemini分析 → ランキング生成
+- データ提供: FastAPI (Port: 8080) を介したREST API
+
+<p align="right">(<a href="#top">トップへ</a>)</p>
 
 ## ビジネス上の価値
 
-- **時間削減**: 毎日のニュースサイト巡回とユーザーの関心度が高い記事の取捨選択を自動化します。
-- **意思決定の補助**: 記事の要約と重要度を数値化することで、キャッチアップの優先順位が付けやすくなります。
+- **時間削減**: 毎日のニュースサイト巡回と取捨選択を自動化します。
+- **意思決定の補助**: 記事の要約と重要度スコアにより、キャッチアップの優先順位が明確になります。
 - **再現性**: 記事の選別ルールを設定することで、毎回同じ基準でスクリーニングが可能です。
-- **運用しやすさ**: ログローテーション付きのファイルログ、環境変数による秘密情報の分離、モジュール分割による保守性を意識した構成です。
+- **外部連携性（v1.2.0〜）**: REST API 経由でランキング・通知候補を取得できるため、ダッシュボードや他システムとの連携基盤として機能します。
+- **運用しやすさ**: ログローテーション、環境変数による秘密情報の分離、モジュール分割による保守性を意識した構成です。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -67,54 +80,50 @@
 
 ## バージョン履歴と改善点
 
-### v1.1.1 での改善点（最新）
-より堅牢で運用しやすいシステムを目指し、以下の改善を行いました。
+### v1.2.0 での改善点（最新）
+既存のバッチ処理ロジックに影響を与えることなく、REST API 機能を独立したコンポーネントとして統合しました。
 
 | 改善内容 | 詳細 |
 |---------|------|
-| **設定値の妥当性検証** | `validate_config()` 追加によるフェイルファスト設計を実現 |
-| **リトライ処理の強化** | Gemini API 呼び出しのテンポラリエラーへの耐性向上 |
-| **エラーハンドリングの適正化** | バッチ全体の例外捕捉を整理し、重複ハンドラを削除 |
-| **DB 操作の安全性向上** | `DatabaseManager` へのコンテキストマネージャー導入による確実なリソース解放とメソッド整理 |
-| **モジュール分離** | `constants.py` / `exceptions.py` / `queries.py` を新設し、凝集度と可読性を向上 |
+| **FastAPI による REST API 化** | `GET /v1/rankings`・`GET /v1/notifications` エンドポイントを実装。Swagger UI（`/docs`）を活用したインタラクティブな仕様確認および即時マニュアルテスト環境を整備。|
+| **Pydantic v2 レスポンスモデルの統合** | API レスポンスに `response_model` を適用することで、出力データの自動バリデーションと型安全なスキーマ定義を保証。クライアントへの不要な内部データの漏洩を防止。 |
+| **SQL パラメータ名称の分離** | ランキング用 `:ranking_limit` と通知対象用 `:notification_limit` を明示的に分離し、SQLインジェクション対策を徹底するとともに、クエリの意図しない混同を防ぐ堅牢なデータアクセス層を構築。 |
+| **絶対インポートへの刷新による可読性向上** | 実行環境に依存せず、常にプロジェクトルートを基準としてモジュールを正確に特定できるよう、絶対インポート表記へと全面刷新。コードの構造的直感性と堅牢性を向上。|
+| **`__init__.py` の適切な配置によるパッケージ化** | 各ディレクトリに `__init__.py` を明示的に配置し、Pythonパッケージとして構造化。これにより、`fastapi dev` などのCLIツールやテストフレームワーク実行時におけるインポートの探索エラーを未然に防ぐ、クリーンな配置を実践。|
+| **CORS（Cross-Origin Resource Sharing）の適切な設定** | フロントエンドアプリケーションや外部ダッシュボードからのクロスオリジン接続を想定し、`CORSMiddleware` を導入。セキュリティリスクを抑える防御的設計として、許可するオリジン（Origin）やメソッド（Method）のスコープを適切に制御・制限。|
 
-### v1.1 での改善点（アーキテクチャ刷新）
-v1.0 のコア機能に加え、以下の**設計・アーキテクチャ面の改善**により、実務に耐える保守性と拡張性を実現しました。
-
-| 改善領域 | 内容 | 効果 |
-|---------|------|------|
-| **DB 層の整理** | `DatabaseManager` クラスの導入により、DB 操作を一元管理。テスト時のモック化が容易に。 | 依存性の明確化、単体テスト化の基盤 |
-| **Service 層の導入** | ビジネスロジック（データ保存、通知対象抽出、フロー制御）を `service.py` に集約。 | 責務分離、ロジックの再利用性向上 |
-| **Ranking 処理の分離** | ランキング生成ロジックを独立モジュール化。パラメータ変更が容易に。 | ロジック検証・テスト効率化 |
-| **Mail 送信処理の整理** | テンプレート化、エラーハンドリングの強化。送信リトライ機能を追加。 | 通知信頼性向上、処理の可視化 |
-| **依存注入パターン** | `DatabaseManager` をコンストラクタ引数で注入し、オブジェクト間の結合度を低減。 | テスト性向上、実装の柔軟性確保 |
-| **コードのモジュール化** | 各モジュールの責務を明確に定義、層間の呼び出し規約を統一。 | 新機能追加時の影響範囲を最小化 |
-
-これにより、**既存ロジックに影響を与えずに新しい通知チャネルを追加** したり、**リポジトリを PostgreSQL に切り替え** たりすることが可能になりました。
 
 ### Version History
+
 ```
-v1.0  コア機能完成
-      - RSS取得 / SQLite保存 / Geminiによるニュース評価
-      - ランキング生成 / メール配信
- 
-v1.1  設計・アーキテクチャ改善
-      - DatabaseManagerによるDB層の整理
-      - service層の導入（ビジネスロジックの分離）
-      - 依存注入パターンの導入
-      - モジュール間の責務を明確化
+v1.0    コア機能完成
+        - RSS取得 / SQLite保存 / Geminiによるニュース評価
+        - ランキング生成 / メール配信
+
+v1.1    設計・アーキテクチャ改善
+        - DatabaseManagerによるDB層の整理
+        - service層の導入（ビジネスロジックの分離）
+        - 依存注入パターンの導入
+        - モジュール間の責務を明確化
 
 v1.1.1  堅牢性の向上・リファクタリング
-      - Gemini APIリトライ処理、設定値の妥当性検証
-      - 定数/クエリ/例外モジュールの分離
-      - DatabaseManagerのコンテキストマネージャー対応
- 
-v2.0  運用・拡張（予定）
-      - FastAPIによるAPI化
-      - Web UI / Docker対応
-      - ユーザーごとのカスタマイズ配信
-```
+        - Gemini APIリトライ処理、設定値の妥当性検証
+        - 定数/クエリ/例外モジュールの分離
+        - DatabaseManagerのコンテキストマネージャー対応
 
+v1.2.0  REST API化（最新）
+        - FastAPIによるREST API化（GET /v1/rankings, GET /v1/notifications）
+        - Pydantic v2レスポンスモデル統合
+        - SQLパラメータの名称分離・安全性向上
+        - 絶対インポートへの刷新による可読性向上
+        - __init__.py の適切な配置によるパッケージ化
+        - CORS（Cross-Origin Resource Sharing）の適切な設定
+
+v2.0    運用・拡張（予定）
+        - 非同期処理（async/await）の全面導入
+        - Dockerコンテナ化
+        - Web UIの構築
+```
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -127,15 +136,16 @@ v2.0  運用・拡張（予定）
 | ライブラリ | バージョン | 用途 |
 |-----------|-----------|------|
 | Python | 3.12 | 実行環境 |
+| fastapi | 最新安定版 | REST API フレームワーク（★v1.2.0追加） |
 | feedparser | 6.0.12 | RSS取得・パース |
 | requests | 2.32.5 | HTTP通信 |
 | python-dotenv | 1.2.1 | 環境変数管理 |
-| pydantic | 2.12.5 | データバリデーション・モデル定義 |
+| pydantic | 2.12.5 | データバリデーション・モデル定義（★v1.2.0追加） |
 | google-genai | 1.62.0 | Gemini API クライアント |
 | tenacity | 9.1.2 | リトライ処理 |
 | tqdm | 4.67.3 | 進捗表示 |
 | websockets | 16.0 | WebSocket通信 |
- 
+
 その他の標準ライブラリ（`sqlite3` / `smtplib` / `logging`）は Python 付属のため別途インストール不要です。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
@@ -147,68 +157,110 @@ v2.0  運用・拡張（予定）
 ### データフロー
 
 ```mermaid
-flowchart TD
-    subgraph External [外部]
+flowchart LR
+    subgraph 外部システム
         Web[RSS配信元]
         GeminiAPI[Google Gemini API]
         SMTP[メールサーバー]
+        Client[API クライアント]
     end
 
-    subgraph Server [実行環境]
-        fetch[rss_fetcher.py<br/>RSS取得]
-        analyze[gemini_analyzer.py<br/>要約・重要度]
+    subgraph 収集分析バッチ処理
+        fetch[rss_fetcher.py<br/>RSS記事収集]
+        service[service.py<br/>ビジネスロジック制御]
+        analyze[gemini_analyzer.py<br/>LLM解析・スコアリング]
+        rank[ranking.py<br/>ランキングロジック]
+        notify[mail_sender.py<br/>メール配信]
+    end
+
+    subgraph データストア
         storage[(db.py / SQLite)]
-        rank[ranking.py<br/>ランキング生成]
-        notify[mail_sender.py<br/>通知メール]
     end
 
-    Web --> fetch
-    fetch --> analyze
-    analyze --> GeminiAPI
-    GeminiAPI --> analyze
-    analyze --> storage
-    storage --> rank
-    rank --> storage
-    storage --> notify
-    notify --> SMTP
+    subgraph Web APIレイヤー
+        api[api.py<br/>FastAPI REST API]
+    end
+
+    %% バッチ処理のデータフロー
+    Web -->|RSSフィードXML| fetch
+    fetch -->|未処理記事| service
+    
+    service <-->|プロンプト / 構造化出力| GeminiAPI
+    service -.->|解析依頼| analyze
+    service -.->|ランキング集計| rank
+    
+    service -->|記事・分析結果・順位| storage
+    storage -->|データ参照| service
+    
+    service -->|通知対象データ| notify
+    notify -->|SMTPプロトコル| SMTP
+
+    %% REST APIのデータフロー
+    Client -->|HTTP リクエスト| api
+    api -->|SQLクエリ| storage
+    storage -->|型安全なデータ / Pydanticモデル| api
+    api -->|JSON レスポンス| Client
+
+    %% レイアウト微調整用の不可視線
+    analyze ~~~ rank
 ```
 
 ### モジュール構成（概念）
 
 ```mermaid
 flowchart TD
-    subgraph Core [メインフロー]
-        Main[main.py]
-        RSS[rss_fetcher.py]
-        AI[gemini_analyzer.py]
-        Service[service.py]
+    subgraph Core [データ収集・分析バッチフロー]
+        Main[main.py<br/>バッチエントリーポイント]
+        RSS[rss_fetcher.py<br/>RSS記事取得]
+        AI[gemini_analyzer.py<br/>LLM要約・解析]
+        Rank[ranking.py<br/>ランキング生成]
+        Service[service.py<br/>ビジネスロジック制御]
     end
- 
-    subgraph Output [永続化・出力]
-        Mail[mail_sender.py]
-        Utils[my_utils.py]
-        DB[db.py]
-        SQLite[(SQLite)]
+
+    subgraph API [REST API層 ★v1.2.0]
+        FastAPI[api.py<br/>FastAPI Webサーバー]
     end
- 
-    subgraph Infra [共通基盤]
-        Config[config.py]
-        Const[constants.py]
-        Exc[exceptions.py]
-        Queries[queries.py]
-        Logger[logger.py]
-        Models[models.py]
+
+    subgraph Output [永続化・外部出力]
+        Mail[mail_sender.py<br/>通知メール送信]
+        Utils[my_utils.py<br/>汎用ユーティリティ]
+        DB[db.py<br/>DatabaseManager]
+        SQLite[(SQLite / news.db)]
     end
- 
+
+    subgraph Infra [共通基盤・パッケージ定義]
+        Init[__init__.py<br/>パッケージ初期化 ★v1.2.0]
+        Config[config.py<br/>環境設定管理]
+        Const[constants.py<br/>定数定義]
+        Exc[exceptions.py<br/>独自例外定義]
+        Queries[queries.py<br/>SQLクエリ集約]
+        Logger[logger.py<br/>ロギング一元管理]
+        Models[models.py<br/>Pydantic / データ型定義]
+    end
+
+    %% バッチフローの依存関係
     Main --> RSS
     Main --> AI
     Main --> Service
+    Service --> Rank
+
+    %% 永続化・出力への依存関係
     Service --> DB
-    DB --> SQLite
     Service --> Mail
     Mail --> Utils
+    
+    %% API層からの永続化への依存関係
+    FastAPI --> DB
+    DB --> SQLite
+
+    %% 共通基盤（Infra）への依存関係（パッケージ全体がインポート）
     Core -.-> Infra
+    API -.-> Infra
     Output -.-> Infra
+    
+    %% __init__.pyのシステム全体への構造的アノテーション
+    Init -.-> Core
+    Init -.-> API
 ```
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
@@ -217,54 +269,46 @@ flowchart TD
 
 ## 工夫した点・アピールポイント
 
-### 1. レイヤード設計による責務分離
+### 1. 変化に強いクリーンな「レイヤードアーキテクチャ」の採用
 
 ```
-Presentation / API層
-    ↓
-Service層（ビジネスロジック）
-    ↓
-Data層（DB・永続化）
-    ↓
-Infrastructure層（外部API・ログ）
+Presentation / API 層  （api.py — FastAPI エンドポイント）
+       ↓
+Service 層            （service.py — ビジネスロジック）
+       ↓
+Data 層               （db.py — DB・永続化）
+       ↓
+Infrastructure 層     （外部API・ログ・設定）
 ```
 
-各層が独立した責務を持つため、**層単位でのテストが可能** になり、**機能追加時の影響範囲が限定** されます。
+ビジネスロジック（Service 層）、データアクセス（DB 層）、データモデル（Models）を明確に分離しているため、層単位でのテストが可能になり、機能追加時の影響範囲が限定されます。
 
-### 2. 依存注入による保守性向上
+#### ★【v1.2.0 成果】
+- **柔軟なコンポーネント拡張**: 徹底した責務分離により、既存のバッチ処理ロジックに大幅な変更を加えることなく、独立したコンポーネントとして「FastAPI による REST API 機能」を迅速に統合できました。
+- **インポート探索の適正化**: プロジェクト全体の構造化にあたり、各ディレクトリに `__init__.py` を適切に配置して完全パッケージ化。環境依存によるパス解決エラーを排除するため、プロジェクトルートを起点とする厳格な絶対インポート表記へと全面刷新し、実行時の安定性を向上させました。
+
+### 2. 本番運用を想定した「堅牢性・例外ハンドリング」の徹底
+
+- **フェイルファスト(Fail-Fast)設計**: 起動直後に `validate_config()` で設定値の妥当性を検証し、初期段階でエラーを検知・即時停止させることで、本番稼働中の不完全な状態でのデータ処理やクラッシュを未然に防止するシステムを構築しました。
+- **コンテキストマネージャーによるリソース管理**: `DatabaseManager` に `with` 構文(コンテキストマネージャー)を実装することで、例外発生時でも確実にデータベース接続をクローズし、コネクションリークを防ぐ堅牢なリソース解放処理を担保しました。
+- **依存注入（Dependency Injection）パターン**: 各サービスの依存関係を直接固定せず、コンストラクタ経由で注入可能にすることで、テスト容易性（Testability）を確保しました。
 
 ```python
-# 依存をコンストラクタで受け取る
+# 依存をコンストラクタで受け取る — テスト時はモック化が容易
 service = NewsService(database_manager=db)
-
-# テスト時はモック化が容易
 service = NewsService(database_manager=MockDatabase())
 ```
 
-テストコード作成時に外部依存を除外でき、**単体テストのコスト削減** につながります。
+### 3. 安全かつ適正な「パラメータ管理とデータベースセキュリティ」
 
-### 3. バッチ処理の一元化
+SQL インジェクションを根絶するため、SQLite への全アクセスに**名前付きプレースホルダーによるを用いた動的パラメータバインディング**を徹底しています。
 
-本システムの処理ステップ（取得→分析→ランキング→通知）を `service.py` で一括管理。エラーハンドリングとログの責務が明確で、本番運用での **トラブルシューティングが効率的** です。
+#### ★【v1.2.0 成果】
+- **変数の明示的スコープ分離**: ランキング生成クエリ（上限10件）と通知対象取得クエリ（上限5件）において、混同しやすかった制限値パラメータをそれぞれの役割に応じて `:ranking_limit` / `:notification_limit` へと明示的に分離設計し、予期せぬクエリバグや設定の書き漏らしを構造的に防ぐ防御的プログラミングを実践しています。
 
-### 4. スケーラブルな設計
-
-リポジトリや通知チャネル、AI エンジンを差し替える際に、**既存コードへの影響なしに実装可能** な構造。以下のような拡張が想定されています：
-
-- **リポジトリ層**: SQLite → PostgreSQL / MongoDB への切り替え
-- **通知層**: Gmail → Slack / Discord への追加
-- **AI層**: Gemini → ChatGPT / Claude への置き換え
-
-### 5. 運用性を見据えた設計
-
-- ログローテーション機能により、長期運用でのディスク管理が自動化
-- 環境変数による設定分離で、デプロイ環境ごとの調整が容易
-- `batch_id` によるデータ管理により、処理の追跡と再実行が可能
-
-### 6. 安全性と堅牢性の追求 (v1.1.1追加)
-- **コンテキストマネージャーの活用**: DB操作において `with` 句を用いた確実なリソース管理。
-- **Fail-Fast設計**: 起動直後に設定値の妥当性を検証し、設定ミスによる途中のクラッシュを未然に防止。
-- **モジュールの高凝集化**: 定数、SQLクエリ、カスタム例外をそれぞれ専用ファイルに分離し、単一責任原則を徹底。
+### 4. Web APIにおける「データ検証とWebセキュリティ」【★v1.2.0 新設】
+- **Pydantic v2 による型安全なレスポンスモデル適用**: FastAPIの `response_model` スキーマを厳格に定義し、データベースから取得した生のレコードデータをそのまま返却せず、APIクライアントに必要な情報のみを自動バリデーションして射影することで、内部データ構造の不要な隠蔽（情報漏洩防止）と型安全性を同時にクリアしました。
+- **CORSMiddlewareによるクロスオリジン通信の適正制御**: 将来的なフロントエンドアプリケーション（React/Vue等）や外部ダッシュボードからのオンデマンドな接続を考慮し、CORS（Cross-Origin Resource Sharing）を導入しました。セキュリティリスクを最小限に抑えるため、接続オリジンや許可メソッドのスコープを適切に制限する防御的設計を施しています。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -275,41 +319,53 @@ service = NewsService(database_manager=MockDatabase())
 ```
 it-news-system/
 ├── README.md
-├── requirements.txt      # 依存パッケージ一覧
+├── requirements.txt
 ├── src/
-│   ├── main.py           # エントリポイント
-│   ├── config.py         # パス・API・通知しきい値など
-│   ├── constants.py      # アプリケーション定数定義モジュール
-│   ├── exceptions.py     # カスタム例外定義モジュール
-│   ├── queries.py        # データベースクエリ定義モジュール
-│   ├── rss_fetcher.py    # RSS取得
-│   ├── gemini_analyzer.py
-│   ├── ranking.py
-│   ├── service.py        # 収集〜分析〜ランキングのオーケストレーション
-│   ├── db.py
-│   ├── mail_sender.py
-│   ├── models.py
-│   ├── my_utils.py       # SMTP送信ヘルパ
-│   └── logger.py
-├── data/                 # SQLite 等（.gitignore 推奨）
-└── logs/                 # ログ出力先
+│   ├── main.py             # エントリポイント（バッチ処理）
+│   ├── __init__.py         # パッケージ初期化（★v1.2.0追加）
+│   ├── api.py              # FastAPIサーバー・エンドポイント定義（★v1.2.0追加）
+│   ├── service.py          # 収集〜分析〜ランキングのオーケストレーション
+│   ├── ranking.py          # ランキング生成ロジック
+│   ├── gemini_analyzer.py  # Gemini APIによるAI分析
+│   ├── rss_fetcher.py      # RSS取得
+│   ├── db.py               # DB操作（コンテキストマネージャー対応）
+│   ├── mail_sender.py      # メール送信処理
+│   ├── models.py           # Pydantic・データモデル定義
+│   ├── config.py           # パス・API・通知しきい値など
+│   ├── constants.py        # アプリケーション定数定義
+│   ├── exceptions.py       # カスタム例外定義
+│   ├── queries.py          # データベースクエリ定義
+│   ├── logger.py
+│   └── my_utils.py         # SMTP送信ヘルパ
+├── data/                   # SQLite 等（.gitignore 推奨）
+│   └── news.db 
+└── logs/                   # ログ出力先
+    └── it_news_system.log
 ```
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
+---
+
 ## セットアップと実行
 
 ### 1. 仮想環境の作成とパッケージのインストール
+システム環境を汚染しないよう仮想環境を構築し、必要な依存パッケージを一括インストールします。
 
 ```bash
+# 仮想環境（.venv）の作成
 python3.12 -m venv .venv
+
+# 仮想環境の有効化
 source .venv/bin/activate
+
+# パッケージのインストール
 pip install -r requirements.txt
 ```
 
 ### 2. 環境変数の設定
 
-`.env` ファイルをプロジェクトルートに作成し、以下を設定してください。
+プロジェクトのルートディレクトリに `.env `ファイルを新規作成し、各種認証情報を記述します。
 
 ```
 GEMINI_API_KEY=your-gemini-api-key
@@ -322,72 +378,60 @@ GMAIL_PASS=your-app-password
 | 変数名 | 役割 | 備考 |
 |--------|------|------|
 | `GEMINI_API_KEY` | Gemini API の認証キー | Google AI Studio で発行 |
-| `GMAIL_USER` | 送信元 Gmail アドレス | |
-| `GMAIL_PASS` | Gmail の SMTP 用パスワード | アプリパスワードを推奨（運用ポリシーに従ってください） |
+| `GMAIL_USER` | 送信元 Gmail アドレス | 自身の取得アドレスを記載|
+| `GMAIL_PASS` | Gmail の SMTP 用パスワード | アプリパスワードを推奨 |
 
-#### 動作設定（config.py）
+#### アプリケーション内部動作設定（src/config.py）
+システム運用の最適化やチューニングは、`config.py` 内の以下の定数を調整することで制御可能です。
 
-ユーザーが運用ポリシーに合わせて調整することが多い変数のみを抜粋しています。
-
-| 変数名 | 役割 | デフォルト値の目安 |
+| 変数名 | 役割 | 推奨設定値 |
 |--------|------|-------------------|
-| `IMPORTANCE_THRESHOLD` | メール通知する記事の重要度下限（1〜10） | 7 |
-| `NOTIFICATION_LOOKBACK_DAYS` | 通知対象とする記事の取得期間（日） | 7 |
-| `MAX_NOTIFICATION_COUNT` | 1回の通知で送る最大記事数 | 5 |
+| `DEFAULT_MIN_IMPORTANCE` | 配信対象（重要度）のしきい値（1〜10） |` 7`（厳選されたニュースのみを抽出） |
+| `NOTIFICATION_LOOKBACK_DAYS` | 過去何日分の未処理記事をスコアリング対象とするか | `7`（1週間分のフィードをカバー） |
+| `NOTIFICATION_LIMIT` | 1度に送る最大記事数 | `5` （可読性を維持するための上限値）|
 
-### 3. `data/` と `logs/` の用意
-
-初回実行前に、リポジトリ直下にディレクトリを用意してください（`config.py` の `DB_PATH`・`LOG_FILE` がこの前提です）。
+### 3. 永続化およびログ用ディレクトリの自動・手動展開
+起動時の初期バリデーションエラー（Fail-Fast）を回避するため、実行前にデータストアおよびログ出力用のストレージ領域を必ず確保します。
 
 ```bash
+# プロジェクトルートで実行
 mkdir -p data logs
 ```
 
-### 4. バッチ実行
-
-リポジトリのルートをカレントにして実行します（`python` が `src/main.py` の所在を解決できるようにするため）。
+### 4. ニュース収集・分析バッチの実行
+プロジェクトルートを起点としたパッケージ指定により、インポート探索エラーを起こすことなくバッチ処理パイプラインを起動します。
 
 ```bash
-python src/main.py
+# 常にプロジェクトルートからモジュール指定で実行
+python -m src.main
 ```
 
-### 5. 定期実行（cron）の設定例
+### 5. web API サーバーの起動（★v1.2.0）
+fastapi dev コマンドを使用し、開発用のライブリロードサーバーを立ち上げます。絶対インポートパスの名前空間（src.api）を維持するため、ルートからの相対パスとしてファイルを指定します。
 
-```
-0 8 * * * cd /path/to/it-news-system && .venv/bin/python src/main.py
+```bash
+# プロジェクトルートからモジュール空間を維持したまま起動。環境上のポート競合を避けるため 8080 に設定
+fastapi dev ./src/api.py　--port 8080
 ```
 
-通知の強さは `config.py` の `IMPORTANCE_THRESHOLD`、`NOTIFICATION_LOOKBACK_DAYS`、`MAX_NOTIFICATION_COUNT` などで調整できます。
+起動後、ブラウザで `http://localhost:8080/docs` を開くと自動生成された Swagger UI から各エンドポイントに対してインタラクティブなマニュアルテスト（Try it out）が行えます。
+
+#### 公開APIエンドポイント一覧
+| エンドポイント | メソッド | 概要 |
+|--------------|---------|------|
+| `/v1/rankings` | GET | 直近のバッチでスコアリングされた、高重要度記事のランキング一覧を取得|
+| `/v1/notifications` | GET | 定めたしきい値（重要度等）を満たした、通知対象記事の最新スナップショットを取得|
+| `/docs` | GET | Swagger UI（仕様確認・対話型APIテストクライアント） |
+
+### 6. 生産環境での定期自動実行（cron）の設定例
+Linux環境での定期運用（例：毎日午前9時にバッチを無人実行）を行う場合は、絶対パスと仮想環境内のPythonバイナリを直接指定し、カレントディレクトリに依存しない形での解決を徹底します。
+```
+0 9 * * * cd path/to/it-news-system && ./.venv/bin/python3 -m src.main >> path/to/it-news-system/logs/it_news_system.log 2>&1
+```
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
 ---
-
-## 運用イメージ
-
-1. 指定時刻にバッチが起動する。
-2. RSSから新規記事を取り込み、未分析分をGeminiで処理する。
-3. ランキングを更新し、通知条件を満たす記事があればメールを送る。
-4. ログファイルで成功・失敗を追跡する。
-
-<p align="right">(<a href="#top">トップへ</a>)</p>
-
----
-
-## 今後の拡張例（v2.0 予定）
-
-現在のモジュール設計により、以下の拡張が容易に実装できるように構成されています。
-
-| 拡張内容 | 影響範囲 | 優先度 |
-|---------|---------|--------|
-| **Web UI の追加** | 新規レイヤー（FastAPI / Flask）。既存バッチロジックは影響なし | ★★★ |
-| **記事本文取得** | `rss_fetcher.py` に Web スクレイピング処理を追加。Gemini の分析精度が向上 | ★★★ |
-| **ユーザーごとのカスタマイズ配信** | `service.py` のフィルタロジックを拡張。DB スキーマに user_id を追加 | ★★☆ |
-| **API 化** | 既存バッチ処理を REST エンドポイント化。外部システムとの連携が可能に | ★★☆ |
-| **Slack / Discord 通知** | `mail_sender.py` と同じインターフェースで通知クラスを実装。既存コードへの影響なし | ★☆☆ |
-| **PostgreSQL への移行** | `db.py` の実装を切り替えるだけで対応。Service 層以上は変更不要 | ★☆☆ |
-
-<p align="right">(<a href="#top">トップへ</a>)</p>
 
 ---
 
@@ -395,50 +439,43 @@ python src/main.py
 
 ### `data/` または `logs/` が無い
 
-SQLite のパス（`data/news.db`）やログファイル（`logs/it_news_system.log`）はコード側でディレクトリを自動作成しません。**リポジトリ直下に `mkdir -p data logs` を用意**してから再実行してください。
+SQLite のパス（`data/news.db`）やログファイルはコード側でディレクトリを自動作成しません。**リポジトリ直下に `mkdir -p data logs` を用意**してから再実行してください。
 
 ### `.env` が読み込まれない／キーが空になる
 
-- `.env` は **プロジェクトルート**（`README.md` と同じ階層）に置きます。`src/` 配下に置いていると読み込まれません。
-- 変数名の typo（`GEMINI_API_KEY` など）と、値の前後に余分な引用符が無いか確認してください。[環境変数一覧](#環境変数一覧)を参照してください。
+`.env` は **プロジェクトルート**（`README.md` と同じ階層）に置いてください。`src/` 配下では読み込まれません。変数名の typo と値前後の余分な引用符も確認してください。
 
-### `ModuleNotFoundError` 
+### `ModuleNotFoundError`
 
-READMEどおり **リポジトリルートで** `python src/main.py` を実行してください。別ディレクトリで `python main.py` を実行すると、`src` 内のモジュール実行に失敗することがあります。
+README どおり**リポジトリルートで** `python src/main.py` を実行してください。別ディレクトリから `python main.py` を実行すると `src` 内モジュールの解決に失敗します。
+
+### API サーバーが起動しない
+
+`fastapi` がインストールされているか確認してください（`pip install -r requirements.txt` を再実行）。ポート競合の場合は `fastapi dev src/api.py --port 8001` のように変更してください。
 
 ### RSS が取得できない・件数が常に少ない
 
-- **ネットワーク**（プロキシ・FW）と RSS URL の生存を確認してください。
-- フィード側の障害やレート制限の際は、時間を置いて再実行するか、`config.py` / `rss_fetcher` 側の取得ロジック・タイムアウト設定を見直してください。
+ネットワーク（プロキシ・FW）と RSS URL の生存を確認してください。フィード側の障害時は時間を置いて再実行するか、タイムアウト設定を見直してください。
 
 ### Gemini API からエラーが返る
 
-- `GEMINI_API_KEY` が有効か、Google AI Studio／課金・**クォータ**に達していないか確認してください。
-- **429（レート制限）** の場合は間隔を空けて再実行するか、1 バッチあたりの記事数（`FETCH_LIMIT` など）を下げて負荷を抑えます。
-- モデル ID（`config.py` の `MODEL_ID`）が利用可能な一覧と一致しているか確認してください。
-
-### Gemini の戻りが JSON として解釈できない
-
-プロンプトとモデルの出力がずれると解析に失敗することがあります。ログで該当記事を特定し、**温度 (`TEMPERATURE`) を下げる**、プロンプトで「JSON のみ」と指定する、**失敗時はスキップする** など運用面でカバーする想定です（必要に応じて `gemini_analyzer` のエラーハンドリングを強化）。
+`GEMINI_API_KEY` の有効性とクォータを確認してください。429（レート制限）の場合は間隔を空けて再実行するか、1バッチあたりの記事数を下げてください。
 
 ### `database is locked`（SQLite）
 
-同一マシンで**別プロセスが同じ `news.db` を開いている**、またはディスク／NFS の遅延でロックが残っている場合に起こります。他プロセスを止めてから再実行するか、時間を空けてから再試行してください。
+同一マシン上で別プロセスが同じ `news.db` を開いています。他プロセスを終了してから再実行してください。
 
 ### メールが届かない
 
-- `GMAIL_USER` / `GMAIL_PASS` が正しいか確認してください。
-- Gmail は **アプリパスワード** を使うのが一般的です（2 段階認証と組み合わせ）。通常のログインパスワードでは SMTP 認証に失敗します。
-- `config.py` の **`IMPORTANCE_THRESHOLD` の値が高すぎて通知候補が 0 件**になっていないか確認してください。
-- 迷惑メールフォルダや、送信元・送信先の同一アドレスによるフィルタも確認してください。
+Gmail は**アプリパスワード**を使用してください。また、`IMPORTANCE_THRESHOLD` が高すぎて通知候補が 0 件になっていないか確認してください。
 
-### cron で動かない・ログに何も残らない
+### cron で動かない
 
-- 実行ファイルや仮想環境のPythonを指定する際は、**フルパス**で指定してください（例:`.venv/bin/python`,`/path/to/it-news-system`）。
+実行ファイルや仮想環境の Python を**フルパス**で指定してください（例: `.venv/bin/python`）。
 
 ### ログの確認方法
 
-`logs/` 以下にローテーション付きログ（`it_news_system.log` ）が出力されます。**異常時はこのファイル**を確認し、スタックトレースと直前の INFO を突き合わせてください。
+`logs/it_news_system.log` にローテーション付きログが出力されます。異常時はスタックトレースと直前の INFO ログを突き合わせてください。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
