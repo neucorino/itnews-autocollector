@@ -23,7 +23,7 @@ class RankingGenerator:
         
         # paramsを一緒に渡すことで、SQLの :ranking_limit に 10 がカチッと入る！
         ranked_articles = self.db.conn.execute(
-            queries.GET_RANKED_ARTICLES, params
+            queries.GET_RANKED_ARTICLES_DYNAMIC, params
         ).fetchall()
 
         rankings_to_save = []

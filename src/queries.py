@@ -105,26 +105,38 @@ GET_NOTIFICATION_TARGETS = """
 """
 
 # ランキング取得クエリ
-GET_RANKED_ARTICLES = """
+# GET_RANKED_ARTICLES = """
+#     SELECT 
+#         a.id AS article_id, 
+#         aa.id AS analyses_id,
+#         aa.importance
+#     FROM articles a
+#     INNER JOIN article_analyses aa ON a.id = aa.article_id
+#     WHERE aa.id IN (
+#         SELECT MAX(id)
+#         FROM article_analyses 
+#         GROUP BY article_id
+#     )
+#     ORDER BY aa.importance DESC, a.published_at DESC
+#     LIMIT :ranking_limit
+# """
+
+GET_RANKED_ARTICLES_DYNAMIC = """
     SELECT 
         a.id AS article_id, 
         aa.id AS analyses_id,
-        aa.importance
+        aa.importance,
+        -- 線形減衰: 重要度 - (経過日数 * 0.5)
+        (CAST(aa.importance AS REAL) - ((julianday('now') - julianday(a.published_at)) * 0.5)) AS rank_score
     FROM articles a
     INNER JOIN article_analyses aa ON a.id = aa.article_id
-    WHERE aa.id IN (
-        SELECT MAX(id)
-        FROM article_analyses 
-        GROUP BY article_id
-    )
-    ORDER BY aa.importance DESC, a.published_at DESC
-    LIMIT :ranking_limit
+    WHERE aa.importance >= 6
+      AND a.published_at >= datetime('now', '-7 days')
+      AND aa.id IN (
+          SELECT MAX(id)
+          FROM article_analyses 
+          GROUP BY article_id
+      )
+    ORDER BY rank_score DESC
+    LIMIT 10
 """
-
-# # API用のクエリ
-# GET_LATEST_ARTICLES = """
-#     SELECT id, title, url, summary, published_at, source 
-#     FROM articles 
-#     ORDER BY id DESC 
-#     LIMIT :limit
-# """
