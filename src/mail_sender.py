@@ -26,10 +26,16 @@ def build_email_body(articles: List[Dict[str, Any]]) -> str:
         rank = constants.EMAIL_RANK_EMOJIS[i] if i < len(constants.EMAIL_RANK_EMOJIS) else "📌"
 
         summary = a["ai_summary"].replace("\n", " ")
+        
+        published = datetime.strptime(
+            a["published_at"],
+            "%Y-%m-%d %H:%M:%S"
+            )
 
         # メール本文に追加
         lines += [
-            f"{rank}{i+1}位（重要度: {a['importance']}）",
+            f"{rank}{i+1}位（重要度: {a['importance']}/スコア:{a['rank_score']:.2f}）",
+            f"📅 公開日: {published.strftime('%Y-%m-%d %H:%M')}",
             f"{a['title']}",
             f"→ {summary}",
             f"→ {a['url']}",

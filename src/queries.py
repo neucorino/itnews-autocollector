@@ -46,10 +46,12 @@ CREATE_RANKINGS = """
         analyses_id INTEGER NOT NULL,
         batch_id    INTEGER NOT NULL,
         rank        INTEGER,
+        rank_score  REAL NOT NULL,
         created_at  TEXT,
         FOREIGN KEY (article_id)  REFERENCES articles(id),
         FOREIGN KEY (analyses_id) REFERENCES article_analyses(id),
         FOREIGN KEY (batch_id)    REFERENCES batches(id)
+
     )
 """
 
@@ -69,8 +71,8 @@ INSERT_ANALYSES = """
 """
 
 INSERT_RANKING = """
-    INSERT INTO rankings (article_id, analyses_id, batch_id, rank, created_at)
-    VALUES (:article_id, :analyses_id, :batch_id, :rank, :created_at)
+    INSERT INTO rankings (article_id, analyses_id, batch_id, rank, rank_score, created_at)
+    VALUES (:article_id, :analyses_id, :batch_id, :rank, :rank_score, :created_at)
 """
 
 START_NEW_BATCH = """
@@ -90,10 +92,12 @@ GET_NOTIFICATION_TARGETS = """
         a.title,
         a.url,
         a.source,
+        a.published_at,
         aa.ai_summary,
         aa.importance,
         aa.category,
-        r.rank
+        r.rank,
+        r.rank_score
     FROM rankings r
     INNER JOIN articles a ON r.article_id = a.id
     INNER JOIN article_analyses aa ON r.analyses_id = aa.id
@@ -104,39 +108,50 @@ GET_NOTIFICATION_TARGETS = """
     LIMIT :limit
 """
 
-# ランキング取得クエリ
-# GET_RANKED_ARTICLES = """
-#     SELECT 
-#         a.id AS article_id, 
-#         aa.id AS analyses_id,
-#         aa.importance
-#     FROM articles a
-#     INNER JOIN article_analyses aa ON a.id = aa.article_id
-#     WHERE aa.id IN (
-#         SELECT MAX(id)
-#         FROM article_analyses 
-#         GROUP BY article_id
-#     )
-#     ORDER BY aa.importance DESC, a.published_at DESC
-#     LIMIT :ranking_limit
-# """
-
 GET_RANKED_ARTICLES_DYNAMIC = """
-    SELECT 
-        a.id AS article_id, 
-        aa.id AS analyses_id,
-        aa.importance,
-        -- 線形減衰: 重要度 - (経過日数 * 0.5)
-        (CAST(aa.importance AS REAL) - ((julianday('now') - julianday(a.published_at)) * 0.5)) AS rank_score
-    FROM articles a
-    INNER JOIN article_analyses aa ON a.id = aa.article_id
-    WHERE aa.importance >= 6
-      AND a.published_at >= datetime('now', '-7 days')
-      AND aa.id IN (
-          SELECT MAX(id)
-          FROM article_analyses 
-          GROUP BY article_id
-      )
-    ORDER BY rank_score DESC
-    LIMIT 10
+    WITH ranked AS (
+        SELECT
+            a.id AS article_id,
+            a.published_at,
+            aa.id AS analyses_id,
+            aa.importance,
+            julianday('now') - julianday(a.published_at) AS age_days
+        FROM articles a
+        JOIN article_analyses aa
+            ON a.id = aa.article_id
+        WHERE aa.importance >= :min_importance
+        AND a.published_at >= datetime('now', '-' || :lookback_days || ' days')
+        AND aa.id IN (
+            SELECT MAX(id)
+            FROM article_analyses
+            GROUP BY article_id
+        )
+    )
+
+    SELECT
+        article_id,
+        published_at,
+        analyses_id,
+        importance,
+        age_days,
+        ROUND(
+            importance *
+            CASE
+                WHEN age_days < 1 THEN 1.00
+                WHEN age_days < 2 THEN 0.95
+                WHEN age_days < 3 THEN 0.90
+                WHEN age_days < 4 THEN 0.85
+                WHEN age_days < 5 THEN 0.60
+                WHEN age_days < 6 THEN 0.40
+                WHEN age_days < 7 THEN 0.20
+                ELSE 0.00
+            END ,2
+        )AS rank_score
+    FROM ranked
+    ORDER BY 
+        rank_score DESC,
+        published_at DESC,
+        article_id DESC
+
+    LIMIT :ranking_limit
 """

@@ -30,7 +30,7 @@ LOG_BACKUP_COUNT = 3
 
 # Gemini設定
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL_ID = "gemini-2.5-flash"
+MODEL_ID = "gemini-2.5-flash-lite"
 TEMPERATURE = 0.2
 
 
@@ -94,7 +94,6 @@ GEMINI_MAX_RETRIES = 3        # 429エラー時の最大リトライ回数
 
 # 通知設定
 NOTIFICATION_LOOKBACK_DAYS = 7   # 通知対象とする記事の公開日のさかのぼり日数
-DEFAULT_MIN_IMPORTANCE = 6    # 重要度6以上の記事を対象にする
 RANKING_LIMIT = 10            # 上位10件を取得する
 NOTIFICATION_LIMIT = 5   # 一度に通知する最大件数
 
@@ -102,6 +101,18 @@ NOTIFICATION_LIMIT = 5   # 一度に通知する最大件数
 API_TITLE = "IT News Live API"
 API_DESCRIPTION = "ITニュースを収集し、Geminiで分析・配信するAPI"
 API_VERSION = "1.2.0"
+
+# ランキングの減衰係数（経過日数に応じて重要度を減衰させるためのテーブル）
+FRESHNESS_TABLE = {
+    0: 1.00,
+    1: 0.95,
+    2: 0.90,
+    3: 0.85,
+    4: 0.60,
+    5: 0.40,
+    6: 0.20,
+    7: 0.10,
+}
 
 
 def validate_config() -> None:

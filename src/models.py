@@ -46,6 +46,7 @@ class Ranking:
     analyses_id: int
     batch_id: int
     rank: int
+    rank_score: float
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -63,7 +64,8 @@ class RankedArticleResponse(BaseModel):
     importance: Optional[int] = None
     category: Optional[str] = None
     rank: Optional[int] = None
-
+    rank_score: Optional[float] = None
+    published_at: Optional[str] = None
 
 # /news で返すリスト全体の設計図（件数なども含めると親切です）
 class NewsListResponse(BaseModel):

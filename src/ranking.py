@@ -18,7 +18,8 @@ class RankingGenerator:
         params = {
             "batch_id": batch_id,
             "lookback_days": lookback_days,
-            "ranking_limit": getattr(config, 'RANKING_LIMIT', 10) # 確実に10が渡るようにする
+            "ranking_limit": getattr(config, 'RANKING_LIMIT', 10), # 確実に10が渡るようにする
+            "min_importance": getattr(config, 'IMPORTANCE_THRESHOLD', 6)
         }
         
         # paramsを一緒に渡すことで、SQLの :ranking_limit に 10 がカチッと入る！
@@ -32,7 +33,8 @@ class RankingGenerator:
                 article_id=article['article_id'],
                 analyses_id=article['analyses_id'],
                 batch_id=batch_id,
-                rank=rank
+                rank=rank,
+                rank_score=float(article['rank_score'])
             )
             rankings_to_save.append(rankings)
 
