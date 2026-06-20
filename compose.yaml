@@ -1,0 +1,26 @@
+services:
+  # 1. APIサーバー
+  api:
+    build: .
+    container_name: it-news-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    command: ["fastapi", "run", "src/api.py", "--port", "8080", "--host", "0.0.0.0"]
+
+  # 2. 収集バッチ（必要に応じて起動）
+  worker:
+    build: .
+    container_name: it-news-worker
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    # デフォルトでは起動せず、手動やcron実行用にコマンドを上書き可能にする
+    command: ["python", "src/main.py"]
+    profiles: ["manual"] # 必要時のみ起動するように設定

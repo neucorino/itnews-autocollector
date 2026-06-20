@@ -1,3 +1,4 @@
+fastapi[standard]==0.115.12
 feedparser==6.0.12
 requests==2.32.5
 python-dotenv==1.2.1
@@ -5,4 +6,4 @@ pydantic==2.12.5
 google-genai==1.62.0
 tenacity==9.1.2
 tqdm==4.67.3
-websockets==16.0
+#websockets==16.0
