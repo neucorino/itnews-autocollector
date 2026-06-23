@@ -2,14 +2,14 @@
 
 # IT News Auto-Collector & Delivery System
 
-**Version 1.2.1** —  公開日時の正規化と段階的鮮度係数によるランキングアルゴリズムを導入。ニュース特性に適した記事順位付けを実現した、REST API 統合済みの自律型バッチシステム。
-
+**Version 1.3.0** — Docker (Compose v2) によるコンテナ環境に完全対応。ホストの Python 環境を汚染せず、依存パッケージのビルドから API サーバー起動までを 1 コマンドで完結できます。
 
 <p style="display: inline">
   <img src="https://img.shields.io/badge/-Python-F2C63C.svg?logo=python&style=for-the-badge">
   <img src="https://img.shields.io/badge/-SQLite-003B57.svg?logo=sqlite&style=for-the-badge&logoColor=white">
   <img src="https://img.shields.io/badge/-Google%20Gemini-8E75B2.svg?logo=googlegemini&style=for-the-badge&logoColor=white">
   <img src="https://img.shields.io/badge/-FastAPI-009688.svg?logo=fastapi&style=for-the-badge&logoColor=white">
+  <img src="https://img.shields.io/badge/-Docker-2496ED.svg?logo=docker&style=for-the-badge&logoColor=white">
   <img src="https://img.shields.io/badge/-Linux-FCC624.svg?logo=linux&style=for-the-badge&logoColor=black">
 </p>
 
@@ -26,54 +26,63 @@
 7. [アーキテクチャ](#アーキテクチャ)
 8. [工夫した点・アピールポイント](#工夫した点アピールポイント)
 9. [リポジトリ構成](#リポジトリ構成)
-10. [セットアップと実行](#セットアップと実行)
-11. [トラブルシューティング](#トラブルシューティング)
-12. [ライセンス・連絡](#ライセンス連絡)
+10. [Dockerfile の設計](#dockerfile-の設計)
+11. [セットアップと実行](#セットアップと実行)
+12. [トラブルシューティング](#トラブルシューティング)
+13. [ライセンス・連絡](#ライセンス連絡)
 
 ---
 
 ## はじめに
 
-**バックエンド寄りの Python 製オートメーション**として公開しているポートフォリオ用リポジトリです。マネージドクラウドに縛られない **自ホストで完結する設計** と、**LLM を業務フローに組み込んだ処理**、さらに **FastAPI による REST API 層の追加** を示す目的でまとめています。
+**バックエンド寄りの Python 製オートメーション**として公開しているポートフォリオ用リポジトリです。マネージドクラウドに縛られない **自ホストで完結する設計**、**LLM を業務フローに組み込んだ処理**、**FastAPI による REST API 層**、そして **Docker による再現可能な実行環境** を示す目的でまとめています。
 
 | 対象者 | 参照箇所 |
 |--------|----------|
 | **採用・発注担当** | [ビジネス上の価値](#ビジネス上の価値) → [バージョン履歴](#バージョン履歴と改善点) → [工夫した点・アピールポイント](#工夫した点アピールポイント) → [環境](#環境) |
-| **クライアント（非エンジニア）** | [プロジェクトについて](#プロジェクトについて) → [ビジネス上の価値](#ビジネス上の価値) → [運用イメージ](#運用イメージ) |
-| **開発者・共同作業者** | [リポジトリ構成](#リポジトリ構成) → [セットアップと実行](#セットアップと実行) → [トラブルシューティング](#トラブルシューティング) |
+| **クライアント（非エンジニア）** | [プロジェクトについて](#プロジェクトについて) → [ビジネス上の価値](#ビジネス上の価値) → [運用ワークフロー](#運用ワークフロー) |
+| **開発者・共同作業者** | [リポジトリ構成](#リポジトリ構成) → [Dockerfile の設計](#dockerfile-の設計) → [セットアップと実行](#セットアップと実行) → [トラブルシューティング](#トラブルシューティング) |
 
 ---
 
 ## プロジェクトについて
 
-複数の IT ニュースソース（RSS）から記事を **自動取得** し、**Google Gemini API** で要約・重要度スコア・技術カテゴリの付与を行います。取得した記事を SQLite に蓄積し、**重要度と鮮度係数を組み合わせたランキングアルゴリズム** により期間内トップ記事を算出したうえで、しきい値を超えた記事のみ **Gmail（SMTP）で通知** します。また、v1.2.0 からは **FastAPI による REST API** を追加し、バッチ処理と並行して蓄積データを外部から取得できる構造へと進化しています。
+複数の IT ニュースソース（RSS）から記事を **自動取得** し、**Google Gemini API** で要約・重要度スコア・技術カテゴリの付与を行います。取得した記事を SQLite に蓄積し、**重要度と鮮度係数を組み合わせたランキングアルゴリズム** により期間内トップ記事を算出したうえで、しきい値を超えた記事のみ **Gmail（SMTP）で通知** します。
+
+v1.2.0 からは **FastAPI による REST API** を追加し、v1.3.0 では **Docker (Compose v2)** によるコンテナ化を完了。バッチ処理・API サーバー・データ永続化を分離しつつ、同一イメージから両サービスを起動できる構成へと進化しています。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
 ---
+
 ## 運用ワークフロー
 
-### システム概要(System Overview)
-1. 指定時刻にバッチが起動する。
-2. RSS から新規記事を取り込み、未分析記事を Gemini で処理する。
-3. ランキングを更新し、通知条件を満たす記事があればメールを送る。
-4. API サーバーを常時起動しておくことで、蓄積されたランキング・通知候補を REST 経由でいつでも取得できる。
-5. ログファイルで成功・失敗を追跡する。
+### システム概要 (System Overview)
 
-## ワークフロー
-- 定期実行 (Scheduler): cronによるバッチ処理
-- 処理パイプライン: RSS取得 → SQLite保存 → Gemini分析 → ランキング生成
-- データ提供: FastAPI (Port: 8080) を介したREST API
+1. `docker compose up -d` で API サーバー（`api` サービス）を常時起動する。
+2. 必要に応じて `docker compose run --rm worker` で収集・分析バッチを実行する。
+3. RSS から新規記事を取り込み、未分析記事を Gemini で処理する。
+4. ランキングを更新し、通知条件を満たす記事があればメールを送る。
+5. ホストマウントされた `data/news.db` を介して、API サーバーから蓄積データを REST 経由で取得できる。
+6. ログファイルで成功・失敗を追跡する。
+
+### ワークフロー
+
+- **コンテナ基盤**: Docker Compose v2（`api` 常時起動 / `worker` オンデマンド実行）
+- **処理パイプライン**: RSS 取得 → SQLite 保存 → Gemini 分析 → ランキング生成 → メール配信
+- **データ提供**: FastAPI (Port: 8080) を介した REST API
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
+
+---
 
 ## ビジネス上の価値
 
 - **時間削減**: 毎日のニュースサイト巡回と取捨選択を自動化します。
 - **意思決定の補助**: 記事の要約・重要度スコア・公開日時を組み合わせたランキングにより、キャッチアップの優先順位が明確になります。
 - **再現性**: 記事の選別ルールを設定することで、毎回同じ基準でスクリーニングが可能です。
-- **外部連携性（v1.2.0〜）**: REST API 経由でランキング・通知候補を取得できるため、ダッシュボードや他システムとの連携基盤として機能します。
-- **運用しやすさ**: ログローテーション、環境変数による秘密情報の分離、モジュール分割による保守性を意識した構成です。
+- **外部連携性**: REST API 経由でランキング・通知候補を取得できるため、ダッシュボードや他システムとの連携基盤として機能します。
+- **運用しやすさ**: ログローテーション、環境変数による秘密情報の分離、モジュール分割による保守性、Docker による環境の再現性を意識した構成です。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -81,60 +90,49 @@
 
 ## バージョン履歴と改善点
 
-### v1.2.1 での改善点
-
-**バージョン概要**
-
-v1.2.1 では、ニュースランキングの品質向上を目的として、公開日時の正規化と段階的鮮度係数を用いたランキングアルゴリズムを導入しました。これにより、新しい記事を優先しつつ、一定期間経過後は急速に順位が低下する、ニュースの時間的価値を反映したランキングを実現しています。
+### v1.3.0 での改善点【最新】
 
 | 改善内容 | 詳細 |
 |---------|------|
-| **ランキングアルゴリズムの改善** | 段階的鮮度係数モデルを適用し、重要度の変化が公開直後の記事は緩やかに減衰、4日目以降は急激に減衰するアルゴリズムを実装 |
-| **公開日時の正規化** | RSSの日時文字列（RFC 2822形式）をSQLiteで扱いやすい日時形式（YYYY-MM-DD HH:MM:SS）へ変換して保存するよう修正 |
-| **メール通知の改善** | メール本文に記事の公開日時を追加し、ランキング結果の鮮度を確認できる仕様に改善 |
-| **ランキングスコアの導入** | 重要度と鮮度係数から rank_score を算出し、順位決定に利用 |
-| **ランキングの安定化** | 同一スコアの記事は現在の時刻を基準として、公開日時（同日の場合はIDの降順）を降順に並び替え、順位の再現性を確保 |
-| **プロンプトの更新** | Gemini 2.5 Flash-Lite へのモデル変更とプロンプトの見直しを実施。重要度スコア判定の柔軟性を高めるため、Temperature を以前より高めに設定した |
-
+| **Docker コンテナ化** | `Dockerfile` / `compose.yaml` を追加し、ビルドから起動まで 1 コマンドで完結 |
+| **API / Worker 分離** | 常時起動の API サーバーと、オンデマンド実行の収集バッチを同一イメージ・別サービスとして設計 |
+| **データ永続化の共有** | `data/` / `logs/` をホストボリュームにマウントし、バッチ処理結果を API に即時反映 |
+| **秘密情報の分離** | `.env` を `env_file` 経由でコンテナに注入し、イメージへの埋め込みを回避 |
+| **Worker のクリーン実行** | `--rm` オプションによるバッチ終了後のコンテナ自動破棄 |
 
 ### Version History
 
 ```
 v1.0    コア機能完成
-        - RSS取得 / SQLite保存 / Geminiによるニュース評価
-        - ランキング生成 / メール配信
 
 v1.1    設計・アーキテクチャ改善
-        - DatabaseManagerによるDB層の整理
-        - service層の導入（ビジネスロジックの分離）
-        - 依存注入パターンの導入
-        - モジュール間の責務を明確化
 
 v1.1.1  堅牢性の向上・リファクタリング
-        - Gemini APIリトライ処理、設定値の妥当性検証
-        - 定数/クエリ/例外モジュールの分離
-        - DatabaseManagerのコンテキストマネージャー対応
 
 v1.2.0  REST API化
-        - FastAPIによるREST API化（GET /v1/rankings, GET /v1/notifications）
-        - Pydantic v2レスポンスモデル統合
-        - SQLパラメータの名称分離・安全性向上
-        - 絶対インポートへの刷新による可読性向上
-        - __init__.py の適切な配置によるパッケージ化
-        - CORS（Cross-Origin Resource Sharing）の適切な設定
 
-v1.2.1 ランキングアルゴリズムの改善・公開日時の正規化 `最新`
-        - ランキングアルゴリズムの改善(段階的鮮度係数モデル)
+v1.2.1  ランキングアルゴリズムの改善・公開日時の正規化
+        - ランキングアルゴリズムの改善（段階的鮮度係数モデル）
         - 公開日時の正規化（RFC 2822 → `YYYY-MM-DD HH:MM:SS`）
         - メール本文に記事の公開日時の項目を追加
         - `rank_score` の導入（重要度 × 鮮度係数を算出しDBに保存）
         - 同一スコア時の並び順安定化（優先順位：公開日時 > ID）
-        - モデルの変更(Gemini2.5Flash-Lite)とプロンプトの更新
+        - モデルの変更（Gemini 2.5 Flash-Lite）とプロンプトの更新
+
+v1.3.0  Docker コンテナ化【最新】
+        - Dockerfile / compose.yaml の追加
+        - API サーバー（api）と収集バッチ（worker）のサービス分離
+        - ホストボリュームによる data/・logs/ の永続化と DB 共有
+        - `.env` による秘密情報のコンテナ注入
+        - `docker compose up -d` による API 常時起動
+        - `docker compose run --rm worker` によるバッチのオンデマンド実行
 
 v2.0    運用・拡張（予定）
+        - GitHub リリースタグの作成と CHANGELOG の固定（Git 運用の仕上げ）
+        - cron による収集バッチ（worker）の自動定期運用化
+        - API 機能のさらなる拡張（クエリパラメータや追加エンドポイント）
         - 非同期処理（async/await）の全面導入
-        - Dockerコンテナ化
-        - Web UIの構築
+        - Web UI の構築
 ```
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
@@ -143,20 +141,27 @@ v2.0    運用・拡張（予定）
 
 ## 環境
 
-**前提**: Python 3.12 以上が必要です。
+### 実行基盤（推奨）
+
+| コンポーネント | バージョン | 用途 |
+|--------------|-----------|------|
+| Docker Engine | v25.0 以上推奨 | コンテナ実行環境 |
+| Docker Compose | v2.0 以上 | マルチサービス管理 |
+
+### アプリケーションスタック
 
 | ライブラリ | バージョン | 用途 |
 |-----------|-----------|------|
-| Python | 3.12 | 実行環境 |
-| fastapi | 最新安定版 | REST API フレームワーク（★v1.2.0追加） |
-| feedparser | 6.0.12 | RSS取得・パース |
-| requests | 2.32.5 | HTTP通信 |
+| Python | 3.12 | 実行環境（コンテナ内） |
+| fastapi | 最新安定版 | REST API フレームワーク（★v1.2.0） |
+| feedparser | 6.0.12 | RSS 取得・パース |
+| requests | 2.32.5 | HTTP 通信 |
 | python-dotenv | 1.2.1 | 環境変数管理 |
-| pydantic | 2.12.5 | データバリデーション・モデル定義（★v1.2.0追加） |
+| pydantic | 2.12.5 | データバリデーション・モデル定義（★v1.2.0） |
 | google-genai | 1.62.0 | Gemini API クライアント |
 | tenacity | 9.1.2 | リトライ処理 |
 | tqdm | 4.67.3 | 進捗表示 |
-| websockets | 16.0 | WebSocket通信 |
+| websockets | 16.0 | WebSocket 通信 |
 
 その他の標準ライブラリ（`sqlite3` / `smtplib` / `logging`）は Python 付属のため別途インストール不要です。
 
@@ -170,51 +175,47 @@ v2.0    運用・拡張（予定）
 
 ```mermaid
 flowchart LR
-    subgraph 外部システム
+    subgraph ext["外部システム"]
         Web[RSS配信元]
         GeminiAPI[Google Gemini API]
         SMTP[メールサーバー]
         Client[API クライアント]
     end
 
-    subgraph 収集分析バッチ処理
-        fetch[rss_fetcher.py<br/>RSS記事収集]
-        service[service.py<br/>ビジネスロジック制御]
-        analyze[gemini_analyzer.py<br/>LLM解析・スコアリング]
-        rank[ranking.py<br/>ランキングロジック]
-        notify[mail_sender.py<br/>メール配信]
+    subgraph dc["Docker Compose"]
+        subgraph api["api サービス（常時起動）"]
+            apiMod[api.py<br/>FastAPI REST API]
+        end
+        subgraph worker["worker サービス（オンデマンド）"]
+            fetch[rss_fetcher.py<br/>RSS記事収集]
+            service[service.py<br/>ビジネスロジック制御]
+            analyze[gemini_analyzer.py<br/>LLM解析・スコアリング]
+            rank[ranking.py<br/>ランキングロジック]
+            notify[mail_sender.py<br/>メール配信]
+        end
     end
 
-    subgraph データストア
-        storage[(db.py / SQLite)]
+    subgraph ds["データストア"]
+        storage[(db.py / SQLite<br/>data/news.db)]
     end
 
-    subgraph Web APIレイヤー
-        api[api.py<br/>FastAPI REST API]
-    end
-
-    %% バッチ処理のデータフロー
     Web -->|RSSフィードXML| fetch
     fetch -->|未処理記事| service
-    
     service <-->|プロンプト / 構造化出力| GeminiAPI
     service -.->|解析依頼| analyze
     service -.->|ランキング集計| rank
-    
     service -->|記事・分析結果・順位| storage
     storage -->|データ参照| service
-    
     service -->|通知対象データ| notify
     notify -->|SMTPプロトコル| SMTP
 
-    %% REST APIのデータフロー
-    Client -->|HTTP リクエスト| api
-    api -->|SQLクエリ| storage
-    storage -->|型安全なデータ / Pydanticモデル| api
-    api -->|JSON レスポンス| Client
+    Client -->|HTTP リクエスト| apiMod
+    apiMod -->|SQLクエリ| storage
+    storage -->|型安全なデータ / Pydanticモデル| apiMod
+    apiMod -->|JSON レスポンス| Client
 
-    %% レイアウト微調整用の不可視線
     analyze ~~~ rank
+    
 ```
 
 ### モジュール構成（概念）
@@ -229,7 +230,7 @@ flowchart TD
         Service[service.py<br/>ビジネスロジック制御]
     end
 
-    subgraph API [REST API層 ★v1.2.0]
+    subgraph API [REST API層]
         FastAPI[api.py<br/>FastAPI Webサーバー]
     end
 
@@ -241,7 +242,7 @@ flowchart TD
     end
 
     subgraph Infra [共通基盤・パッケージ定義]
-        Init[__init__.py<br/>パッケージ初期化 ★v1.2.0]
+        Init["__init__.py<br/>パッケージ初期化"]
         Config[config.py<br/>環境設定管理]
         Const[constants.py<br/>定数定義]
         Exc[exceptions.py<br/>独自例外定義]
@@ -250,27 +251,18 @@ flowchart TD
         Models[models.py<br/>Pydantic / データ型定義]
     end
 
-    %% バッチフローの依存関係
     Main --> RSS
     Main --> AI
     Main --> Service
     Service --> Rank
-
-    %% 永続化・出力への依存関係
     Service --> DB
     Service --> Mail
     Mail --> Utils
-    
-    %% API層からの永続化への依存関係
     FastAPI --> DB
     DB --> SQLite
-
-    %% 共通基盤（Infra）への依存関係（パッケージ全体がインポート）
     Core -.-> Infra
     API -.-> Infra
     Output -.-> Infra
-    
-    %% __init__.pyのシステム全体への構造的アノテーション
     Init -.-> Core
     Init -.-> API
 ```
@@ -293,50 +285,29 @@ Data 層               （db.py — DB・永続化）
 Infrastructure 層     （外部API・ログ・設定）
 ```
 
-ビジネスロジック（Service 層）、データアクセス（DB 層）、データモデル（Models）を明確に分離しているため、層単位でのテストが可能になり、機能追加時の影響範囲が限定されます。
+ビジネスロジック・データアクセス・データモデルを層単位で分離しているため、機能追加時の影響範囲が限定されます。この設計により、既存のバッチ処理に手を加えることなく FastAPI による REST API 機能を独立コンポーネントとして統合できました。
 
-#### ★【v1.2.0 成果】
-- **柔軟なコンポーネント拡張**: 徹底した責務分離により、既存のバッチ処理ロジックに大幅な変更を加えることなく、独立したコンポーネントとして「FastAPI による REST API 機能」を迅速に統合できました。
-- **インポート探索の適正化**: プロジェクト全体の構造化にあたり、各ディレクトリに `__init__.py` を適切に配置して完全パッケージ化しました。環境依存によるパス解決エラーを排除するため、プロジェクトルートを起点とする厳格な絶対インポート表記へと全面刷新し、実行時の安定性を向上させました。
+### 2. 本番運用を想定した「堅牢性・セキュリティ」の徹底
 
-### 2. 本番運用を想定した「堅牢性・例外ハンドリング」の徹底
+- **フェイルファスト設計**: 起動直後に `validate_config()` で設定値を検証し、不完全な状態での稼働を防ぎます。
+- **リソース管理**: `DatabaseManager` にコンテキストマネージャーを実装し、例外発生時でも確実に DB 接続をクローズします。
+- **依存注入（DI）パターン**: 依存関係をコンストラクタ経由で注入することで、テスト時のモック差し替えを容易にしています。
+- **SQL インジェクション対策**: SQLite への全アクセスに名前付きプレースホルダーを用いた動的パラメータバインディングを徹底しています。
+- **型安全な API レスポンス**: Pydantic v2 の `response_model` により内部データ構造を隠蔽し、CORSMiddleware で接続オリジン・許可メソッドを適切に制限しています。
 
-- **フェイルファスト(Fail-Fast)設計**: 起動直後に `validate_config()` で設定値の妥当性を検証し、不完全な状態での稼働を初期段階で遮断することで、本番環境でのデータ破損やクラッシュを未然に防ぎます。
-- **コンテキストマネージャーによるリソース管理**: `DatabaseManager` に `with` 構文を実装することで、例外発生時でも確実にDB接続をクローズし、コネクションリークを防ぐ堅牢なリソース解放処理を担保しました。
-- **依存注入（Dependency Injection）パターン**: 依存関係をコンストラクタ経由で注入可能にすることで、テスト時のモック差し替えを容易にし、テスト容易性（Testability）を確保しています。
+### 3. ニュース特性を反映した「ランキングアルゴリズムと LLM 設計」
 
-```python
-# 依存をコンストラクタで受け取る — テスト時はモック化が容易
-service = NewsService(database_manager=db)
-service = NewsService(database_manager=MockDatabase())
-```
+- **段階的鮮度減衰モデル**: 公開からの経過時間に応じてスコアが段階的に低下。重要度 × 鮮度係数の `rank_score` で時間的価値を順位に反映。
+- **公開日時の正規化と安定ソート**: RFC 2822 形式を `YYYY-MM-DD HH:MM:SS` へ統一保存し、同一スコア時は公開日時 → ID の優先順位で並び順を確定することで一貫したランキングを保証します。
+- **LLM の継続的改善**: Gemini 2.5 Flash-Lite へ移行してコストを削減しつつ、Temperature の引き上げとプロンプト改修でスコアリング精度を維持しています。
 
-### 3. 安全かつ適正な「パラメータ管理とデータベースセキュリティ」
+### 4. 再現可能な「Docker コンテナ基盤」の構築
 
-SQL インジェクションを根絶するため、SQLite への全アクセスに**名前付きプレースホルダーを用いた動的パラメータバインディング**を徹底しています。
-
-#### ★【v1.2.0 成果】
-- **変数の明示的スコープ分離**: ランキング生成クエリ（上限10件）と通知対象取得クエリ（上限5件）において、混同しやすかった制限値パラメータをそれぞれ `:ranking_limit` / `:notification_limit` へと明示的に分離し、クエリバグや設定漏れを構造的に防ぐ防御的プログラミングを実践しています。
-
-### 4. Web APIにおける「データ検証とWebセキュリティ」
-
-- **Pydantic v2 による型安全なレスポンスモデル適用**: FastAPIの `response_model` スキーマを厳格に定義し、DBから取得した生レコードをそのまま返却せず、必要な情報のみを自動バリデーションして返す設計により、内部データ構造の隠蔽（情報漏洩防止）と型安全性を両立しました。
-- **CORSMiddlewareの適正制御**: 将来的なフロントエンド(React/Vue等)や外部ダッシュボードからのオンデマンドな接続を考慮し、CORS（Cross-Origin Resource Sharing）を導入しました。セキュリティリスクを最小限に抑えるため、接続オリジンや許可メソッドのスコープを適切に制限する防御的設計を施しています。
-
-### 5. ニュース特性を反映した「ランキングアルゴリズムの設計」【★v1.2.1】
-
-記事の重要度だけでなく、**記事の鮮度（公開からの経過時間）を加味した段階的鮮度減衰モデル**を独自設計しました。
-
-- **段階的鮮度係数モデルの実装**: 公開からの経過時間に応じてスコアが段階的に低下するアルゴリズムを実装。重要度スコアと鮮度係数を掛け合わせた `rank_score` を算出することで、記事の時間的価値を順位に反映しています。
-- **公開日時の正規化**: RSS の日時文字列（RFC 2822 形式）を `YYYY-MM-DD HH:MM:SS`（ISO 8601）形式に変換して DB に統一保存することで、クエリの安定性と可読性を向上させました。
-- **メール本文への公開日時の追加**: ランキング結果とあわせて各記事の公開日時を表示し、鮮度をひと目で確認できるようにしました。
-- **同一スコア時の安定ソート**: 公開日時 → ID の優先順位で並び順を確定させ、実行タイミングに影響されない一貫したランキング結果を保証しています。
-
-### 6. LLM プロンプトの継続的な改善【★v1.2.1】
-
-- **モデルの更新**: Gemini 2.5 Flash から Gemini 2.5 Flash-Lite へ移行し、API利用料金を削減しました。
-- **Temperature の調整**: 重要度スコア判定の柔軟性を高めるため、Temperature を以前より高めに設定しました。
-- **プロンプトの見直し**: モデル変更にあわせてプロンプトを修正し、スコアリング精度の維持を図りました。
+- **API / Worker の役割分離**: 同一 Docker イメージから `api`（FastAPI 常時起動）と `worker`（バッチオンデマンド）を起動。関心の分離をインフラ層でも一貫させています。
+- **ホストボリュームによる DB 共有**: `data/news.db` をホストにマウントし、バッチ処理結果を API サーバーへ即時反映。コンテナ再起動後もデータを保持します。
+- **レイヤーキャッシュ最適化**: `requirements.txt` を先に COPY → `pip install` することで、ソース変更時の再ビルド時間を短縮。
+- **秘密情報の外部注入**: `.env` を `env_file` で読み込み、API キーや SMTP 認証情報をイメージに含めない設計。
+- **Worker の `--rm` 実行**: バッチ終了後にコンテナを自動破棄し、実行環境を常にクリーンな状態に保ちます。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -347,16 +318,19 @@ SQL インジェクションを根絶するため、SQLite への全アクセス
 ```
 it-news-system/
 ├── README.md
+├── CHANGELOG.md
+├── Dockerfile              # コンテナイメージ定義（★v1.3.0）
+├── compose.yaml            # Docker Compose サービス定義（★v1.3.0）
 ├── requirements.txt
 ├── src/
 │   ├── main.py             # エントリポイント（バッチ処理）
-│   ├── __init__.py         # パッケージ初期化（★v1.2.0追加）
-│   ├── api.py              # FastAPIサーバー・エンドポイント定義（★v1.2.0追加）
+│   ├── __init__.py         # パッケージ初期化（★v1.2.0）
+│   ├── api.py              # FastAPI サーバー・エンドポイント定義（★v1.2.0）
 │   ├── service.py          # 収集〜分析〜ランキングのオーケストレーション
 │   ├── ranking.py          # ランキング生成ロジック
-│   ├── gemini_analyzer.py  # Gemini APIによるAI分析
-│   ├── rss_fetcher.py      # RSS取得
-│   ├── db.py               # DB操作（コンテキストマネージャー対応）
+│   ├── gemini_analyzer.py  # Gemini API による AI 分析
+│   ├── rss_fetcher.py      # RSS 取得
+│   ├── db.py               # DB 操作（コンテキストマネージャー対応）
 │   ├── mail_sender.py      # メール送信処理
 │   ├── models.py           # Pydantic・データモデル定義
 │   ├── config.py           # パス・API・通知しきい値など
@@ -364,10 +338,10 @@ it-news-system/
 │   ├── exceptions.py       # カスタム例外定義
 │   ├── queries.py          # データベースクエリ定義
 │   ├── logger.py
-│   └── my_utils.py         # SMTP送信ヘルパ
-├── data/                   # SQLite 等（.gitignore 推奨）
-│   └── news.db 
-└── logs/                   # ログ出力先
+│   └── my_utils.py         # SMTP 送信ヘルパ
+├── data/                   # SQLite（ホストボリュームとしてマウント）
+│   └── news.db
+└── logs/                   # ログ出力先（ホストボリュームとしてマウント）
     └── it_news_system.log
 ```
 
@@ -375,30 +349,58 @@ it-news-system/
 
 ---
 
-## セットアップと実行
+## Dockerfile の設計
 
-### 1. 仮想環境の作成とパッケージのインストール
-システム環境を汚染しないよう仮想環境を構築し、必要な依存パッケージを一括インストールします。
+本プロジェクトの `Dockerfile` は、**軽量な Python 3.12 ベースイメージ**を起点とし、本番相当の API サーバー起動をデフォルトとする構成です。
 
-```bash
-# 仮想環境（.venv）の作成
-python3.12 -m venv .venv
+### 構成の概要
 
-# 仮想環境の有効化
-source .venv/bin/activate
+| ステップ | 内容 | 意図 |
+|---------|------|------|
+| ベースイメージ | `python:3.12-slim` | 最小限の OS フットプリントで Python 3.12 実行環境を確保 |
+| 環境変数 | `PYTHONDONTWRITEBYTECODE=1` | `.pyc` ファイル生成を抑制し、イメージサイズと不要ファイルを削減 |
+| 環境変数 | `PYTHONUNBUFFERED=1` | 標準出力・エラー出力をバッファリングせず、コンテナログに即時反映 |
+| 環境変数 | `PYTHONPATH=/app` | 絶対インポート（`src.*`）の探索ルートを固定し、実行環境の差異を排除 |
+| システム依存 | `build-essential` | 一部 Python パッケージのネイティブコンパイルに備える |
+| 依存インストール | `requirements.txt` を先に COPY | Docker レイヤーキャッシュを活用し、ソース変更時の再ビルドを高速化 |
+| ソース配置 | `COPY src/ ./src/` | アプリケーションコードを `/app/src/` に配置 |
+| ディレクトリ確保 | `mkdir -p data logs` | Fail-Fast 回避のため、永続化・ログ用ディレクトリを事前作成 |
+| ポート公開 | `EXPOSE 8080` | FastAPI サーバーの待受ポートを明示 |
+| デフォルト CMD | `fastapi run src/api.py --port 8080 --host 0.0.0.0` | コンテナ単体起動時は API サーバーとして動作（Compose 側でも上書き可能） |
 
-# パッケージのインストール
-pip install -r requirements.txt
-```
+### compose.yaml との連携
 
-### 2. 環境変数の設定
+`compose.yaml` では同一イメージから 2 つのサービスを定義しています。
 
-プロジェクトのルートディレクトリに `.env`ファイルを新規作成し、各種認証情報を記述します。
+| サービス | 役割 | 起動方法 |
+|---------|------|---------|
+| `api` | FastAPI サーバーを常時起動 | `docker compose up -d` |
+| `worker` | RSS 取得〜分析〜メール配信バッチ | `docker compose run --rm worker` |
 
-```
-GEMINI_API_KEY=your-gemini-api-key
-GMAIL_USER=your-email@gmail.com
-GMAIL_PASS=your-app-password
+両サービスとも `./data` と `./logs` をホストにマウントし、**バッチ処理で更新された SQLite データを API サーバーが即座に参照できる**設計です。`worker` は `profiles: ["manual"]` により、`up -d` 時の自動起動を抑制し、必要なタイミングでのみ実行します。
+
+<p align="right">(<a href="#top">トップへ</a>)</p>
+
+---
+
+## セットアップと実行 (Setup & Execution)
+
+本システムは **Docker (Compose v2)** を用いたコンテナ環境に完全対応しています。ホストマシンの Python 環境を汚染することなく、依存パッケージのビルドからサーバーの起動までを 1 コマンドで完結できます。
+
+### 1. 前提条件 (Prerequisites)
+
+- Docker Engine (v25.0 以上推奨)
+- Docker Compose (v2.0 以上)
+- Google Gemini API キー ([Google AI Studio](https://aistudio.google.com/) より取得)
+
+### 2. 環境変数の配置
+
+リポジトリルートに `.env` ファイルを配置し、必要な認証情報を記述します。コンテナ起動時に自動的に読み込まれます。
+
+```env
+GEMINI_API_KEY=your_api_key_here
+GMAIL_USER=your_email@gmail.com
+GMAIL_PASS=your_app_password_here
 ```
 
 #### 環境変数一覧
@@ -406,18 +408,17 @@ GMAIL_PASS=your-app-password
 | 変数名 | 役割 | 備考 |
 |--------|------|------|
 | `GEMINI_API_KEY` | Gemini API の認証キー | Google AI Studio で発行 |
-| `GMAIL_USER` | 送信元 Gmail アドレス | 自身の取得アドレスを記載|
+| `GMAIL_USER` | 送信元 Gmail アドレス | 自身の取得アドレスを記載 |
 | `GMAIL_PASS` | Gmail の SMTP 用パスワード | アプリパスワードを推奨 |
 
-#### アプリケーション内部動作設定（src/config.py）
-システム運用の最適化やチューニングは、`config.py` 内の以下の定数を調整することで制御可能です。
+#### アプリケーション内部動作設定（`src/config.py`）
 
 | 変数名 | 役割 | 推奨設定値 |
-|--------|------|-------------------|
-| `IMPORTANCE_THRESHOLD` | 配信対象（重要度）のしきい値（1〜10） |` 7`（厳選されたニュースのみを抽出） |
-| `NOTIFICATION_LOOKBACK_DAYS` | 過去何日分の未処理記事をスコアリング対象とするか | `7`（1週間分のフィードをカバー） |
-| `NOTIFICATION_LIMIT` | 1度に送る最大記事数 | `5` （可読性を維持するための上限値）|
-| `FRESHNESS_TABLE` | 公開日時からの経過日数に対応する鮮度係数 |下記参照(3日目までは緩やかに減衰し、4日目以降は急激に低下する設計) |
+|--------|------|-----------|
+| `IMPORTANCE_THRESHOLD` | 配信対象（重要度）のしきい値（1〜10） | `7` |
+| `NOTIFICATION_LOOKBACK_DAYS` | スコアリング対象とする過去日数 | `7` |
+| `NOTIFICATION_LIMIT` | 1 度に送る最大記事数 | `5` |
+| `FRESHNESS_TABLE` | 経過日数に対応する鮮度係数 | 3 日目まで緩やか、4 日目以降急激に減衰 |
 
 ```
 FRESHNESS_TABLE = {
@@ -432,104 +433,90 @@ FRESHNESS_TABLE = {
 }
 ```
 
-### 3. 永続化およびログ用ディレクトリの自動・手動展開
-起動時の初期バリデーションエラー（Fail-Fast）を回避するため、実行前にデータストアおよびログ出力用のストレージ領域を必ず確保します。
+プロジェクトのルートディレクトリで以下のコマンドを実行します。
 
 ```bash
-# プロジェクトルートで実行
-mkdir -p data logs
+# コンテナのビルドおよびバックグラウンド起動
+docker compose up -d
 ```
 
-### 4. ニュース収集・分析バッチの実行
-プロジェクトルートを起点としたパッケージ指定により、インポート探索エラーを起こすことなくバッチ処理パイプラインを起動します。
+起動後、自動的に API サーバーが立ち上がります。
 
-```bash
-# 常にプロジェクトルートからモジュール指定で実行
-python -m src.main
-```
+- **接続確認**: [http://localhost:8080/](http://localhost:8080/) へアクセス
+- **インタラクティブ API ドキュメント (Swagger UI)**: [http://localhost:8080/docs](http://localhost:8080/docs) へアクセス
 
-### 5. web API サーバーの起動（★v1.2.0）
-fastapi dev コマンドを使用し、開発用のライブリロードサーバーを立ち上げます。絶対インポートパスの名前空間（src.api）を維持するため、ルートからの相対パスとしてファイルを指定します。
+#### 公開 API エンドポイント一覧
 
-```bash
-# プロジェクトルートからモジュール空間を維持したまま起動。環境上のポート競合を避けるため 8080 に設定
-fastapi dev ./src/api.py　--port 8080
-```
-
-起動後、ブラウザで `http://localhost:8080/docs` を開くと自動生成された Swagger UI から各エンドポイントに対してインタラクティブなマニュアルテスト（Try it out）が行えます。
-
-#### 公開APIエンドポイント一覧
 | エンドポイント | メソッド | 概要 |
 |--------------|---------|------|
-| `/v1/rankings` | GET | 直近のバッチでスコアリングされた、高重要度記事のランキング一覧を取得|
-| `/v1/notifications` | GET | 定めたしきい値（重要度等）を満たした、通知対象記事の最新スナップショットを取得|
-| `/docs` | GET | Swagger UI（仕様確認・対話型APIテストクライアント） |
+| `/v1/rankings` | GET | 直近のバッチでスコアリングされた高重要度記事のランキング一覧 |
+| `/v1/notifications` | GET | しきい値を満たした通知対象記事の最新スナップショット |
+| `/docs` | GET | Swagger UI（仕様確認・対話型 API テスト） |
 
-### 6. 生産環境での定期自動実行（cron）の設定例
-Linux環境での定期運用（例：毎日午前9時にバッチを無人実行）を行う場合は、絶対パスと仮想環境内のPythonバイナリを直接指定し、カレントディレクトリに依存しない形での解決を徹底します。
+### 4. ニュース収集・分析バッチの手動定期実行 (Worker CLI)
+
+常時起動している API サーバーとは別に、RSS フィードの取得、LLM による重要度分析、ランキング生成、メール配信のパイプラインを一括実行したい場合は、以下の独立コンテナコマンドを実行します。
+
+```bash
+docker compose run --rm worker
 ```
-0 9 * * * cd path/to/it-news-system && ./.venv/bin/python3 -m src.main >> path/to/it-news-system/logs/it_news_system.log 2>&1
+
+`--rm` オプションにより、バッチ処理終了後にコンテナが自動破棄されるクリーンな設計となっています。収集・分析されたデータはホストマウントされた `data/news.db` を介して、常時起動コンテナ（`api`）に即座に共有・反映されます。
+
+### 5. コンテナの停止とクリーンアップ
+
+```bash
+docker compose down
 ```
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
-
----
 
 ---
 
 ## トラブルシューティング
 
-### `data/` または `logs/` が無い
+### コンテナが起動しない / ビルドに失敗する
 
-SQLite のパス（`data/news.db`）やログファイルはコード側でディレクトリを自動作成しません。**リポジトリ直下に `mkdir -p data logs` を用意**してから再実行してください。
+Docker Engine と Compose v2 がインストールされているか確認してください。`docker compose build --no-cache` でキャッシュを無視して再ビルドできます。
 
 ### `.env` が読み込まれない／キーが空になる
 
-`.env` は **プロジェクトルート**（`README.md` と同じ階層）に置いてください。`src/` 配下では読み込まれません。変数名の typo と値前後の余分な引用符も確認してください。
+`.env` は **プロジェクトルート**（`README.md` と同じ階層）に置いてください。変数名の typo と値前後の余分な引用符も確認してください。
 
-### `ModuleNotFoundError`
+### `data/` または `logs/` が無い
 
-README どおり**リポジトリルートで** `python src/main.py` を実行してください。別ディレクトリから `python main.py` を実行すると `src` 内モジュールの解決に失敗します。
+初回起動前に `mkdir -p data logs` を実行してください。Dockerfile 内でも作成していますが、ホスト側のマウント先ディレクトリは事前に用意しておくと安全です。
 
-### API サーバーが起動しない
+### API サーバーに接続できない
 
-`fastapi` がインストールされているか確認してください（`pip install -r requirements.txt` を再実行）。ポート競合の場合は `fastapi dev src/api.py --port 8001` のように変更してください。
+`docker compose ps` で `api` サービスが `running` か確認してください。ポート 8080 が他プロセスで使用されていないかも確認します。
 
-### RSS が取得できない・件数が常に少ない
+### Worker バッチが失敗する
 
-ネットワーク（プロキシ・FW）と RSS URL の生存を確認してください。フィード側の障害時は時間を置いて再実行するか、タイムアウト設定を見直してください。
+`docker compose run --rm worker` の標準出力と `logs/it_news_system.log` を確認してください。Gemini API キーや Gmail 認証情報の設定ミスが多い原因です。
 
 ### Gemini API からエラーが返る
 
-`GEMINI_API_KEY` の有効性とクォータを確認してください。429（レート制限）の場合は間隔を空けて再実行するか、1バッチあたりの記事数を下げてください。
+`GEMINI_API_KEY` の有効性とクォータを確認してください。429（レート制限）の場合は間隔を空けて再実行するか、1 バッチあたりの記事数を下げてください。
 
 ### `database is locked`（SQLite）
 
-同一マシン上で別プロセスが同じ `news.db` を開いています。他プロセスを終了してから再実行してください。
+`api` と `worker` が同時に `news.db` へ書き込もうとすると発生します。バッチ実行中は API への書き込み系操作を避けるか、バッチ完了後に再試行してください。
 
 ### メールが届かない
 
 Gmail は**アプリパスワード**を使用してください。また、`IMPORTANCE_THRESHOLD` が高すぎて通知候補が 0 件になっていないか確認してください。
 
-### cron で動かない
-
-実行ファイルや仮想環境の Python を**フルパス**で指定してください（例: `.venv/bin/python`）。
-
-### ログの確認方法
-
-`logs/it_news_system.log` にローテーション付きログが出力されます。異常時はスタックトレースと直前の INFO ログを突き合わせてください。
-
 ### ランキングスコアが意図通りにならない
 
-`config.py` の `FRESHNESS_TABLE` と `DEFAULT_MIN_IMPORTANCE` を見直してください。スコアは「重要度 × 鮮度係数」で算出されるため、重要度が低い記事は鮮度が高くても上位に来ません。また、`NOTIFICATION_LOOKBACK_DAYS` の範囲外の記事はスコアリング対象外となります。
+`config.py` の `FRESHNESS_TABLE` と `DEFAULT_MIN_IMPORTANCE` を見直してください。スコアは「重要度 × 鮮度係数」で算出されるため、重要度が低い記事は鮮度が高くても上位に来ません。
 
 ### 記事の公開日時が正しく表示されない
 
-RSS フィードによっては RFC 2822 形式以外の日時文字列を返す場合があります。`logs/it_news_system.log` でパースエラーが出ていないか確認し、該当フィードの日時フォーマットを調査してください。
+RSS フィードによっては RFC 2822 形式以外の日時文字列を返す場合があります。`logs/it_news_system.log` でパースエラーが出ていないか確認してください。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
----
 
 ## ライセンス・連絡
 

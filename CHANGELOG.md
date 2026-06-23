@@ -5,15 +5,29 @@
 
 ## [Unreleased]
 - 次のバージョンに組み込み予定の機能、および検証中の修正事項。
-### 今後の拡張例（v2.0 予定）
-- **非同期処理（async/await）の全面導入** : `api.py` / `db.py` の非同期化（既存バッチ処理は 影響なし）
-- **Docker コンテナ化**: `Dockerfile` / `compose.yaml` の追加（アプリコードへの影響なし）
+### 今後の拡張例
+- **非同期処理（async/await）の全面導入**: `api.py` / `db.py` の非同期化（既存バッチ処理は影響なし）
 - **Web UI の追加**: 新規フロントエンド層（React / Vue）の構築
-- **記事本文取得**: `rss_fetcher.py` へのWebスクレイピング追加による分析精度向上
+- **記事本文取得**: `rss_fetcher.py` への Web スクレイピング追加による分析精度向上
 - **ユーザーごとのカスタマイズ配信**: `service.py` のフィルタロジック拡張と DB スキーマへの `user_id` 追加
 - **Slack / Discord 通知**: `mail_sender.py` と同インターフェースでの通知クラス追加
 - **PostgreSQL への移行**: `db.py` の実装切り替え（Service 層以上は変更不要）
 
+
+## [v1.3.0] - 2026-06-22
+
+Docker (Compose v2) によるコンテナ環境への完全対応。アプリケーションコードへの変更を最小限に抑えつつ、ビルドから API サーバー起動までを 1 コマンドで完結できる実行基盤を構築しました。
+
+### Added
+- `Dockerfile` の追加: `python:3.12-slim` ベース、`PYTHONPATH=/app` による絶対インポートの固定、レイヤーキャッシュ最適化（`requirements.txt` 先行 COPY）
+- `compose.yaml` の追加: `api`（FastAPI 常時起動）と `worker`（収集バッチ・オンデマンド実行）のサービス分離
+- ホストボリュームマウント: `data/` / `logs/` をコンテナと共有し、バッチ処理結果を API サーバーへ即時反映
+- `.env` による秘密情報のコンテナ注入: `env_file` 経由で API キー・SMTP 認証情報を読み込み、イメージへの埋め込みを回避
+- `worker` サービスの `profiles: ["manual"]` 設定: `docker compose up -d` 時の自動起動を抑制し、必要時のみバッチ実行
+
+### Changed
+- セットアップ手順を Docker Compose v2 前提に刷新: `docker compose up -d` による API 起動、`docker compose run --rm worker` によるバッチ実行
+- README に Dockerfile 設計解説・Docker 関連トラブルシューティングを追加
 
 ## [v1.2.1] - 2026-06-11
 
