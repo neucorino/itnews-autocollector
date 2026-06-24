@@ -12,6 +12,15 @@ services:
       - .env
     command: ["fastapi", "run", "src/api.py", "--port", "8080", "--host", "0.0.0.0"]
 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s # ヘルスチェックの間隔
+      timeout: 10s
+      retries: 3 # 3回連続で失敗（応答なし/エラー）したら「unhealthy（異常）」と判定
+      start_period: 5s # コンテナ起動直後の待機時間
+
+    restart: always  # プロセスが落ちた時や、上記のヘルスチェックで異常(unhealthy)になった時に自動再起動する設定
+
   # 2. 収集バッチ（必要に応じて起動）
   worker:
     build: .

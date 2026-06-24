@@ -61,3 +61,12 @@ def get_news(
     except Exception as e:
         logger.error(f"ニュースの取得に失敗しました: {e}")
         raise HTTPException(status_code=500, detail="ニュースの取得に失敗しました")
+
+@app.get("/health", tags=["System"])
+def health_check():
+    """
+    Docker Engine用のヘルスチェックエンドポイント
+    APIサーバーの死活監視に使用
+    """
+    # 将来的に「DB接続が生きているか」などのセルフテストをここに拡張可能
+    return {"status": "healthy"}
