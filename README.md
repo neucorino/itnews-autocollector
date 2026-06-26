@@ -2,7 +2,7 @@
 
 # IT News Auto-Collector & Delivery System
 
-**Version 1.3.0** — Docker (Compose v2) によるコンテナ環境に完全対応。ホストの Python 環境を汚染せず、依存パッケージのビルドから API サーバー起動までを 1 コマンドで完結できます。
+**Version 1.3.1** — Docker Compose による API サーバーの死活監視と自動再起動を追加。ヘルスチェックエンドポイントにより、コンテナ環境でのサービス信頼性を強化しました。
 
 <p style="display: inline">
   <img src="https://img.shields.io/badge/-Python-F2C63C.svg?logo=python&style=for-the-badge">
@@ -48,8 +48,7 @@
 ## プロジェクトについて
 
 複数の IT ニュースソース（RSS）から記事を **自動取得** し、**Google Gemini API** で要約・重要度スコア・技術カテゴリの付与を行います。取得した記事を SQLite に蓄積し、**重要度と鮮度係数を組み合わせたランキングアルゴリズム** により期間内トップ記事を算出したうえで、しきい値を超えた記事のみ **Gmail（SMTP）で通知** します。
-
-v1.2.0 からは **FastAPI による REST API** を追加し、v1.3.0 では **Docker (Compose v2)** によるコンテナ化を完了。バッチ処理・API サーバー・データ永続化を分離しつつ、同一イメージから両サービスを起動できる構成へと進化しています。
+v1.2.0 からは **FastAPI による REST API** を追加し、v1.3.0 では **Docker (Compose v2)** によるコンテナ化を完了。v1.3.1 では **ヘルスチェックと自動再起動** により運用の安定性を強化しています。バッチ処理・API サーバー・データ永続化を分離しつつ、同一イメージから両サービスを起動できる構成へと進化しています。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -90,15 +89,17 @@ v1.2.0 からは **FastAPI による REST API** を追加し、v1.3.0 では **D
 
 ## バージョン履歴と改善点
 
-### v1.3.0 での改善点【最新】
+### v1.3.1 での改善点【最新】
 
 | 改善内容 | 詳細 |
 |---------|------|
-| **Docker コンテナ化** | `Dockerfile` / `compose.yaml` を追加し、ビルドから起動まで 1 コマンドで完結 |
-| **API / Worker 分離** | 常時起動の API サーバーと、オンデマンド実行の収集バッチを同一イメージ・別サービスとして設計 |
-| **データ永続化の共有** | `data/` / `logs/` をホストボリュームにマウントし、バッチ処理結果を API に即時反映 |
-| **秘密情報の分離** | `.env` を `env_file` 経由でコンテナに注入し、イメージへの埋め込みを回避 |
-| **Worker のクリーン実行** | `--rm` オプションによるバッチ終了後のコンテナ自動破棄 |
+| **ヘルスチェック API** | `GET /health` エンドポイントを追加し、API サーバーの死活監視に対応 |
+| **Compose healthcheck** | `api` サービスで 30 秒間隔のヘルスチェックを設定し、3 回連続失敗で unhealthy と判定 |
+| **自動再起動** | `restart: always` により、プロセス異常終了や unhealthy 判定時にコンテナを自動復旧 |
+| **curl の導入** | `Dockerfile` に `curl` を追加し、Compose からのヘルスチェック実行を可能に |
+| **Linuxシステムcronによるバッチ（worker）の自律定期実行** | オンデマンド実行用にコンポーネント分離した `worker` コンテナを、ホストOS（Ubuntu）側の定期実行タスクスケジューラー（cron）に登録。 |
+| **プロダクション運用のための堅牢なデバッグログ設計** | cron実行時における最小限の環境変数を考慮した絶対パス制御を徹底。`cron.log`へ、コンテナの標準出力およびエラー出力（`2>&1`）をすべて集約。 | 
+
 
 ### Version History
 
@@ -112,14 +113,8 @@ v1.1.1  堅牢性の向上・リファクタリング
 v1.2.0  REST API化
 
 v1.2.1  ランキングアルゴリズムの改善・公開日時の正規化
-        - ランキングアルゴリズムの改善（段階的鮮度係数モデル）
-        - 公開日時の正規化（RFC 2822 → `YYYY-MM-DD HH:MM:SS`）
-        - メール本文に記事の公開日時の項目を追加
-        - `rank_score` の導入（重要度 × 鮮度係数を算出しDBに保存）
-        - 同一スコア時の並び順安定化（優先順位：公開日時 > ID）
-        - モデルの変更（Gemini 2.5 Flash-Lite）とプロンプトの更新
 
-v1.3.0  Docker コンテナ化【最新】
+v1.3.0  Docker コンテナ化
         - Dockerfile / compose.yaml の追加
         - API サーバー（api）と収集バッチ（worker）のサービス分離
         - ホストボリュームによる data/・logs/ の永続化と DB 共有
@@ -127,9 +122,17 @@ v1.3.0  Docker コンテナ化【最新】
         - `docker compose up -d` による API 常時起動
         - `docker compose run --rm worker` によるバッチのオンデマンド実行
 
+v1.3.1  サービス信頼性の強化【最新】
+        - GET /health エンドポイントの追加
+        - compose.yaml への healthcheck 設定
+        - api サービスの restart: always による自動再起動
+        - Dockerfile への curl 追加
+        - Linuxシステムcronによるバッチ（worker）の自律定期実行
+        - プロダクション運用のための堅牢なデバッグログ設計
+
 v2.0    運用・拡張（予定）
+        - Slack / Discord 通知
         - GitHub リリースタグの作成と CHANGELOG の固定（Git 運用の仕上げ）
-        - cron による収集バッチ（worker）の自動定期運用化
         - API 機能のさらなる拡張（クエリパラメータや追加エンドポイント）
         - 非同期処理（async/await）の全面導入
         - Web UI の構築
@@ -307,7 +310,8 @@ Infrastructure 層     （外部API・ログ・設定）
 - **ホストボリュームによる DB 共有**: `data/news.db` をホストにマウントし、バッチ処理結果を API サーバーへ即時反映。コンテナ再起動後もデータを保持します。
 - **レイヤーキャッシュ最適化**: `requirements.txt` を先に COPY → `pip install` することで、ソース変更時の再ビルド時間を短縮。
 - **秘密情報の外部注入**: `.env` を `env_file` で読み込み、API キーや SMTP 認証情報をイメージに含めない設計。
-- **Worker の `--rm` 実行**: バッチ終了後にコンテナを自動破棄し、実行環境を常にクリーンな状態に保ちます。
+- **ヘルスチェックと自動再起動**: `GET /health` と Compose `healthcheck` で API サーバーの死活を監視し、`restart: always` により異常時の自動復旧を実現。
+- **ホストcronとDockerのProfiles機能を組み合わせたオンデマンド自律運用**: 常時起動が必要な`api`サービスと、1日1回だけ動かす`worker`サービスのライフサイクルを最適化。ホストOSの堅牢な `cron` と Docker Compose の `profiles: ["manual"]` を組み合わせることで、「毎朝指定時刻に自動で`worker`コンテナが立ち上がり、配信を終えると、コンテナが自ら消滅（`--rm`）する」という、ホストマシンのリソースを無駄にしないハイブリッドバッチアーキテクチャを実現しました。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -319,13 +323,13 @@ Infrastructure 層     （外部API・ログ・設定）
 it-news-system/
 ├── README.md
 ├── CHANGELOG.md
-├── Dockerfile              # コンテナイメージ定義（★v1.3.0）
-├── compose.yaml            # Docker Compose サービス定義（★v1.3.0）
+├── Dockerfile              # コンテナイメージ定義（v1.3.0 / ★v1.3.1）
+├── compose.yaml            # Docker Compose サービス定義（v1.3.0 / ★v1.3.1）
 ├── requirements.txt
 ├── src/
 │   ├── main.py             # エントリポイント（バッチ処理）
 │   ├── __init__.py         # パッケージ初期化（★v1.2.0）
-│   ├── api.py              # FastAPI サーバー・エンドポイント定義（★v1.2.0）
+│   ├── api.py              # FastAPI サーバー・エンドポイント定義（v1.2.0 / ★v1.3.1）
 │   ├── service.py          # 収集〜分析〜ランキングのオーケストレーション
 │   ├── ranking.py          # ランキング生成ロジック
 │   ├── gemini_analyzer.py  # Gemini API による AI 分析
@@ -358,6 +362,7 @@ it-news-system/
 | ステップ | 内容 | 意図 |
 |---------|------|------|
 | ベースイメージ | `python:3.12-slim` | 最小限の OS フットプリントで Python 3.12 実行環境を確保 |
+| システム依存 | `curl` | Compose `healthcheck` から `/health` へ HTTP リクエストを送るために使用（★v1.3.1） |
 | 環境変数 | `PYTHONDONTWRITEBYTECODE=1` | `.pyc` ファイル生成を抑制し、イメージサイズと不要ファイルを削減 |
 | 環境変数 | `PYTHONUNBUFFERED=1` | 標準出力・エラー出力をバッファリングせず、コンテナログに即時反映 |
 | 環境変数 | `PYTHONPATH=/app` | 絶対インポート（`src.*`）の探索ルートを固定し、実行環境の差異を排除 |
@@ -378,6 +383,8 @@ it-news-system/
 | `worker` | RSS 取得〜分析〜メール配信バッチ | `docker compose run --rm worker` |
 
 両サービスとも `./data` と `./logs` をホストにマウントし、**バッチ処理で更新された SQLite データを API サーバーが即座に参照できる**設計です。`worker` は `profiles: ["manual"]` により、`up -d` 時の自動起動を抑制し、必要なタイミングでのみ実行します。
+
+`api` サービスには `healthcheck`（30 秒間隔で `GET /health` を確認）と `restart: always` を設定しており、API サーバーの死活監視と異常時の自動再起動に対応しています（★v1.3.1）。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -451,23 +458,26 @@ docker compose up -d
 |--------------|---------|------|
 | `/v1/rankings` | GET | 直近のバッチでスコアリングされた高重要度記事のランキング一覧 |
 | `/v1/notifications` | GET | しきい値を満たした通知対象記事の最新スナップショット |
+| `/health` | GET | API サーバーの死活監視用（Docker Compose healthcheck から利用）（★v1.3.1） |
 | `/docs` | GET | Swagger UI（仕様確認・対話型 API テスト） |
 
-### 4. ニュース収集・分析バッチの手動定期実行 (Worker CLI)
+### 4. ニュース収集・分析バッチの自律定期実行 (Worker CLI)
 
-常時起動している API サーバーとは別に、RSS フィードの取得、LLM による重要度分析、ランキング生成、メール配信のパイプラインを一括実行したい場合は、以下の独立コンテナコマンドを実行します。
-
-```bash
-docker compose run --rm worker
-```
-
-`--rm` オプションにより、バッチ処理終了後にコンテナが自動破棄されるクリーンな設計となっています。収集・分析されたデータはホストマウントされた `data/news.db` を介して、常時起動コンテナ（`api`）に即座に共有・反映されます。
-
-### 5. コンテナの停止とクリーンアップ
+ホストOS（Ubuntu）側の定期実行タスクスケジューラー（cron）に登録した `worker` コンテナが、毎日朝7時に自動で立ち上がり、RSS フィードの取得、LLM による重要度分析、ランキング生成、メール配信のパイプラインを実行します。ホストのターミナルで `crontab -e` を実行し、以下のタスクを登録します。
 
 ```bash
-docker compose down
+#毎朝7:00に自動でプロジェクトルートへ移動し、一時的なコンテナで worker をオンデマンド実行
+0 7 * * * cd /path/to/it-news-system && /usr/bin/docker compose run --rm worker >> /path/to/it-news-system/logs/cron.log 2>&1
 ```
+
+### 5.動作および死活監視の確認
+APIコンテナが正常に健康状態を宣言できているか確認するには、以下のコマンドのカッコ内のステータスを確認します。
+
+```bash
+# STATUSに 「Up X minutes (healthy)」 と刻まれていれば正常にヘルスチェックが回っています
+docker compose ps
+```
+
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -489,7 +499,7 @@ Docker Engine と Compose v2 がインストールされているか確認して
 
 ### API サーバーに接続できない
 
-`docker compose ps` で `api` サービスが `running` か確認してください。ポート 8080 が他プロセスで使用されていないかも確認します。
+`docker compose ps` で `api` サービスが `running` か確認してください。ポート 8080 が他プロセスで使用されていないかも確認します。`docker inspect --format='{{.State.Health.Status}}' it-news-api` でヘルスチェック状態（`healthy` / `unhealthy`）も確認できます。
 
 ### Worker バッチが失敗する
 

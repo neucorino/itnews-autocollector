@@ -8,11 +8,24 @@
 ### 今後の拡張例
 - **非同期処理（async/await）の全面導入**: `api.py` / `db.py` の非同期化（既存バッチ処理は影響なし）
 - **Web UI の追加**: 新規フロントエンド層（React / Vue）の構築
-- **記事本文取得**: `rss_fetcher.py` への Web スクレイピング追加による分析精度向上
 - **ユーザーごとのカスタマイズ配信**: `service.py` のフィルタロジック拡張と DB スキーマへの `user_id` 追加
 - **Slack / Discord 通知**: `mail_sender.py` と同インターフェースでの通知クラス追加
 - **PostgreSQL への移行**: `db.py` の実装切り替え（Service 層以上は変更不要）
 
+
+## [v1.3.1] - 2026-06-24
+
+Docker Compose による API サーバーの死活監視と自動復旧を強化。ヘルスチェックエンドポイントの追加と Compose 側の運用設定を整備し、コンテナ環境でのサービス信頼性を向上しました。
+
+### Added
+- `GET /health` エンドポイントの追加: Docker Engine 向けの API サーバー死活監視用（`{"status": "healthy"}` を返却）
+- オンデマンド実行用にコンポーネント分離した `worker` コンテナを、cronによる自律定期実行を設定。
+- ホスト側の専用ログファイル（`cron.log`）へ、コンテナの標準出力およびエラー出力（`2>&1`）をすべて集約
+
+### Changed
+- `Dockerfile` に `curl` を追加: Compose `healthcheck` コマンドの実行に必要
+- `compose.yaml` の `api` サービスに `healthcheck` を設定: 30 秒間隔で `/health` を確認し、3 回連続失敗で unhealthy と判定
+- `compose.yaml` の `api` サービスに `restart: always` を追加: プロセス異常終了や unhealthy 判定時の自動再起動
 
 ## [v1.3.0] - 2026-06-22
 
