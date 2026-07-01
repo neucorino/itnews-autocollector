@@ -17,9 +17,14 @@ DB_PATH = BASE_DIR / "data" / "news.db"
 
 # RSS
 RSS_LIST = [
-    ("https://news.ycombinator.com/rss", "Hacker News")
+    ("https://news.ycombinator.com/rss", "Hacker News"),
+    ("https://techcrunch.com/feed/", "TechCrunch"),
+    ("https://www.theverge.com/rss/index.xml", "The Verge"),
+    ("https://feeds.arstechnica.com/arstechnica/index", "Ars Technica"),
+    ("https://github.blog/feed/", "GitHub Blog"),
 ]
-FETCH_LIMIT = 30
+#FETCH_LIMIT = 100
+SOURCE_FETCH_LIMIT = 20
 
 
 # ロギングの設定
@@ -83,11 +88,10 @@ MY_PASSWORD = os.getenv('GMAIL_PASS')
 
 
 # ニュース取得のルール
-LATEST_NEWS_LIMIT = 30       # 最新ニュース取得件数
 IMPORTANCE_THRESHOLD = 6    # 通知対象にする重要度のしきい値
-MAX_ARTICLES_PER_BATCH = 30   # 一度に処理する記事の上限
+MAX_ARTICLES_PER_BATCH = 100  # 1バッチ全体で処理する記事の上限
 GEMINI_SLEEP_SECONDS = 5    # リクエスト間のwait時間
-GEMINI_MAX_RETRIES = 3        # 429エラー時の最大リトライ回数
+GEMINI_MAX_RETRIES = 5        # 429エラー時の最大リトライ回数
 
 
 # 通知設定

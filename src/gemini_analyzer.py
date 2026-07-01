@@ -43,7 +43,7 @@ def analyze_article_with_gemini(
             
         except Exception as e:
             if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                wait_time = config.GEMINI_SLEEP_SECONDS * (attempt + 1)
+                wait_time = config.GEMINI_SLEEP_SECONDS * (2 ** attempt)
                 logger.warning(f"429エラー。{wait_time}秒後にリトライ ({attempt+1}/{max_retries})")
                 time.sleep(wait_time)
             else:

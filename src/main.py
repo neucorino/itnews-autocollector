@@ -12,14 +12,23 @@ logger = logging.getLogger(__name__)
 
 
 def process_sources(service: NewsService, batch_id: int) -> None:
-    """各RSSソースを処理する。1ソース失敗しても他を続行する。"""
+    """各RSSソースを処理する。1ソース失敗しても他を続行する。
+    全ソースの記事を集約してから1回だけ分析・ランキングを行い、
+    MAX_ARTICLES_PER_BATCH を「1バッチ合計の上限」として機能させる。
+    """
+    all_articles = []
     for rss_url, source in config.RSS_LIST:
         try:
             articles = service.process_new_articles(rss_url, source)
-            service.process_new_analyses(articles, batch_id)
-            service.process_new_rankings(batch_id)
-        except NewsSystemException as e:
-            logger.error(f"処理中にエラー ({source}): {e}")
+            if articles:
+                all_articles.extend(articles)
+            else:
+                logger.warning(f"[{source}] から記事が取得できませんでした。")
+        except Exception as e:
+            logger.error(f"❌ {source} の処理中にエラーが発生しました（スキップして続行します）: {e}", exc_info=True)
+    logger.info(f"全ソースの集約完了。合計 {len(all_articles)} 件の記事を分析・ランキング処理へ回します。")
+    service.process_new_analyses(all_articles, batch_id)
+    service.process_new_rankings(batch_id)
 
 
 def run_batch(db_manager: DatabaseManager) -> None:

@@ -16,8 +16,15 @@ class NewsService:
 
     # RSSからデータを受け取ってDBに保存する処理
     def process_new_articles(self, rss_url: str, source: str) -> List[Article]:
+        # 1. まずRSSから記事を全件フェッチする
         articles = rss_fetcher.fetch_rss(rss_url, source)
-        logger.info(f"記事をDBに保存しました。: {len(articles)}件")
+        
+        # 2. 💡 config.SOURCE_FETCH_LIMIT (20件) を使って、ソースごとに最大件数を制限する
+        limit = getattr(config, "SOURCE_FETCH_LIMIT", 20)
+        if articles:
+            articles = articles[:limit]
+            
+        logger.info(f"[{source}] から最大 {len(articles)} 件の記事をDBに保存します。")
         return self.db.bulk_insert_articles(articles)
 
 
