@@ -13,33 +13,52 @@ logger = logging.getLogger(__name__)
 
 #Gemini APIの呼び出しとプロンプトの設定
 def analyze_article_with_gemini(
+    id: int,
     title: str, 
     summary: str, 
-    max_retries: int = config.GEMINI_MAX_RETRIES
+    max_retries: int = config.GEMINI_MAX_RETRIES,
+    user_preferences: str = config.USER_PREFERENCES
     ) -> Optional[Dict[str, Any]]:
 
     logger.info("Gemini分析開始")
 
     """記事のタイトルと要約をGemini APIに送信して分析結果を辞書で返す"""
-    prompt = config.PROMPT_TEMPLATE.format(title=title, summary=summary)
+    prompt = config.PROMPT_TEMPLATE.format(
+        id=id,
+        title=title, 
+        summary=summary, 
+        user_preferences=user_preferences
+    )
     
     system_instruction = config.SYSTEM_INSTRUCTION
 
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+
     for attempt in range(max_retries):
         try:
-            client = genai.Client(api_key=config.GEMINI_API_KEY)
+            #client = genai.Client(api_key=config.GEMINI_API_KEY)
             response = client.models.generate_content(
                 model=config.MODEL_ID,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     response_mime_type="application/json", 
-                    temperature=config.TEMPERATURE)
+                    temperature=config.TEMPERATURE,
+                    tool_config=types.ToolConfig(
+                        function_calling_config=types.FunctionCallingConfig(
+                            mode="none"
+                        )
+                    )
+                )
             )
             raw_text = response.text # Gemini APIからの生のテキストレスポンス
             logger.info("Gemini APIからのレスポンスを受信")
-            result = json.loads(raw_text) # JSON形式のテキストを辞書に変換
-            return result
+            result_list = json.loads(raw_text) # JSON形式のテキストを辞書に変換
+            if isinstance(result_list, list) and len(result_list) > 0:
+                return result_list[0]
+            else:
+                logger.error("Geminiからの出力がリスト形式ではありませんでした。")
+                return None
             
         except Exception as e:
             if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
@@ -65,7 +84,7 @@ def analyze_articles(articles: List[Article], batch_id: int) -> List[ArticleAnal
     for i, article in enumerate(target_articles):
         # articleオブジェクトからidを取得（ここが article_id になる）
         current_article_id = getattr(article, 'id', None) 
-        result = analyze_article_with_gemini(article.title, article.summary)
+        result = analyze_article_with_gemini(current_article_id, article.title, article.summary)
 
         if not result:
             logger.warning(f"Gemini分析失敗(スキップ): {article.title}")
