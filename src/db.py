@@ -159,7 +159,7 @@ class DatabaseManager:
         except Exception as e:
             raise DatabaseError(f"通知対象の取得に失敗しました: {e}") from e
 
-    # --- API用の追加クエリもここに実装していく予定 ---
+    # 通知対象の取得（API用）
     def get_news_from_db(self,params:dict):
         conn = sqlite3.connect(config.DB_PATH)
         # 辞書形式で結果を取得できるように設定

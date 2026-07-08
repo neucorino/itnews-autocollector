@@ -36,7 +36,6 @@ def analyze_article_with_gemini(
 
     for attempt in range(max_retries):
         try:
-            #client = genai.Client(api_key=config.GEMINI_API_KEY)
             response = client.models.generate_content(
                 model=config.MODEL_ID,
                 contents=prompt,
@@ -46,7 +45,7 @@ def analyze_article_with_gemini(
                     temperature=config.TEMPERATURE,
                     tool_config=types.ToolConfig(
                         function_calling_config=types.FunctionCallingConfig(
-                            mode="none"
+                            mode="NONE"
                         )
                     )
                 )
@@ -59,18 +58,32 @@ def analyze_article_with_gemini(
             else:
                 logger.error("Geminiからの出力がリスト形式ではありませんでした。")
                 return None
-            
+
         except Exception as e:
-            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+            error_str = str(e)
+            # 💡 429（レート制限）に加えて、503（サーバー一時混雑）もリトライ対象にする
+            is_temporary_error = (
+                "429" in error_str 
+                or "RESOURCE_EXHAUSTED" in error_str 
+                or "503" in error_str 
+                or "UNAVAILABLE" in error_str
+            )
+
+            if is_temporary_error:
                 wait_time = config.GEMINI_SLEEP_SECONDS * (2 ** attempt)
-                logger.warning(f"429エラー。{wait_time}秒後にリトライ ({attempt+1}/{max_retries})")
+                logger.warning(
+                    f"一時的なAPIエラーを確認。"
+                    f"{wait_time}秒後に自動リトライします。({attempt+1}/{max_retries})"
+                )
                 time.sleep(wait_time)
             else:
-                logger.exception(f"Gemini APIへのリクエストに失敗しました")
+                # 🛑 認証エラーやプログラムのバグなど、リトライしても無駄なものは即座に諦める
+                logger.exception(f"回復不能なエラーのため、Gemini APIへのリクエストを中断します: {title}")
                 return None
 
-    logger.error(f"最大リトライ回数到達: {title}")
-    raise GeminiAnalysisError(f"Gemini分析失敗（最大リトライ回数到達）: {title}")
+    # すべてのリトライ回数を使い切ってもダメだった場合
+    logger.error(f"最大リトライ回数({max_retries}回)に達したため、この記事をスキップします: {title}")
+    return None  # 💡 上位層(forループ)を止めないよう、例外を投げずにNoneを返して安全にスキップ
 
 
 # Gemini 分析
@@ -82,26 +95,46 @@ def analyze_articles(articles: List[Article], batch_id: int) -> List[ArticleAnal
     target_articles = articles[:config.MAX_ARTICLES_PER_BATCH]
 
     for i, article in enumerate(target_articles):
-        # articleオブジェクトからidを取得（ここが article_id になる）
-        current_article_id = getattr(article, 'id', None) 
-        result = analyze_article_with_gemini(current_article_id, article.title, article.summary)
+        try:
+            # articleオブジェクトからidを取得（ここが article_id になる）
+            current_article_id = getattr(article, 'id', None) 
+            result = analyze_article_with_gemini(current_article_id, article.title, article.summary)
 
-        if not result:
-            logger.warning(f"Gemini分析失敗(スキップ): {article.title}")
-            continue
+            if result:
+                analyze = ArticleAnalysis(
+                article_id=current_article_id,
+                batch_id=batch_id,
+                ai_summary=result.get("ai_summary", ""),
+                importance=result.get("importance", 0),
+                reason=result.get("reason", ""),
+                category=result.get("category", ""),
+            )
+                analyses_list.append(analyze)
+                logger.info(f"Gemini分析完了: {article.title} (重要度: {result.get('importance', 0)})")
+            else:
+                # 最大リトライに達して None が返ってきた場合
+                logger.warning(f"分析失敗のため、ダミーレコードを生成します: {article.title}")
+                # 失敗データ（重要度0）を作成して同じリストに混ぜる！
+                analyses_list.append(ArticleAnalysis(
+                    article_id=article.id,
+                    batch_id=batch_id,
+                    ai_summary="[分析失敗] APIエラーのため要約を生成できませんでした。",
+                    importance=0,  # 0点にしておくことでランキングや通知の条件(>=6)から自動で外れる
+                    category="Error"
+                ))
+                logger.info(f"ダミーレコードを生成します: {article.title}")
 
-        analyze = ArticleAnalysis(
-            article_id=current_article_id,
-            batch_id=batch_id,
-            ai_summary=result.get("ai_summary", ""),
-            importance=result.get("importance", 0),
-            reason=result.get("reason", ""),
-            category=result.get("category", ""),
-        )
-
-        analyses_list.append(analyze)
-
-        logger.info(f"Gemini分析完了: {article.title} (重要度: {result.get('importance', 0)})")
+        except Exception as e:
+            # 429/503以外の致命的なエラーで即座に諦める場合も同様にダミーを混ぜる
+            logger.error(f"回復不能なエラーによるスキップ: {e}")
+            analyses_list.append(ArticleAnalysis(
+                article_id=article.id,
+                batch_id=batch_id,
+                ai_summary=f"[回復不能なエラー] {str(e)}",
+                importance=0,
+                category="Error"
+            ))
+            logger.info(f"ダミーレコードを生成します: {article.title}")
 
         # Gemini APIへのリクエスト間に少し待機する（連続リクエストを避けるため）
         if i < len(target_articles) - 1:
