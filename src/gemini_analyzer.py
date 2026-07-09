@@ -92,17 +92,22 @@ def analyze_articles(articles: List[Article], batch_id: int) -> List[ArticleAnal
     分析に失敗した記事はスキップする。
     """
     analyses_list = []
-    target_articles = articles[:config.MAX_ARTICLES_PER_BATCH]
+    # 複数RSSソースで同一URLが重複する場合に備え、article_id で一意化する
+    seen_ids: set[int] = set()
+    unique_articles = []
+    for article in articles:
+        if article.id is not None and article.id not in seen_ids:
+            seen_ids.add(article.id)
+            unique_articles.append(article)
+    target_articles = unique_articles[:config.MAX_ARTICLES_PER_BATCH]
 
     for i, article in enumerate(target_articles):
         try:
-            # articleオブジェクトからidを取得（ここが article_id になる）
-            current_article_id = getattr(article, 'id', None) 
-            result = analyze_article_with_gemini(current_article_id, article.title, article.summary)
+            result = analyze_article_with_gemini(article.id, article.title, article.summary)
 
             if result:
                 analyze = ArticleAnalysis(
-                article_id=current_article_id,
+                article_id=article.id,
                 batch_id=batch_id,
                 ai_summary=result.get("ai_summary", ""),
                 importance=result.get("importance", 0),

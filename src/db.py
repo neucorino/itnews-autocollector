@@ -39,6 +39,7 @@ class DatabaseManager:
             queries.CREATE_BATCHES,
             queries.CREATE_ARTICLES,
             queries.CREATE_ARTICLE_ANALYSES,
+            queries.CREATE_ARTICLE_ANALYSES_UNIQUE_INDEX,
             queries.CREATE_RANKINGS,
         )
         with self.conn:
@@ -85,7 +86,12 @@ class DatabaseManager:
         with self.conn:
             for article in articles:
                 cursor = self.conn.execute(queries.INSERT_ARTICLE, article.to_dict())
-                article.id = cursor.lastrowid or self._fetch_article_id_by_url(article.url)
+                # INSERT OR IGNORE でスキップされた場合、lastrowid は直前の INSERT の id のまま
+                # 残るため rowcount で判定し、重複時は URL から正しい id を引く
+                if cursor.rowcount > 0:
+                    article.id = cursor.lastrowid
+                else:
+                    article.id = self._fetch_article_id_by_url(article.url)
         logger.info(f"{len(articles)}件の記事を保存しました")
         return articles
 

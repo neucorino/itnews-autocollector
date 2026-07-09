@@ -35,8 +35,14 @@ CREATE_ARTICLE_ANALYSES = """
         category    TEXT,
         analyzed_at TEXT,
         FOREIGN KEY (article_id) REFERENCES articles(id),
-        FOREIGN KEY (batch_id)   REFERENCES batches(id)
+        FOREIGN KEY (batch_id)   REFERENCES batches(id),
+        UNIQUE (article_id, batch_id)
     )
+"""
+
+CREATE_ARTICLE_ANALYSES_UNIQUE_INDEX = """
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_article_analyses_article_batch
+    ON article_analyses (article_id, batch_id)
 """
 
 CREATE_RANKINGS = """
