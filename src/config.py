@@ -111,7 +111,7 @@ NOTIFICATION_LIMIT = 5   # 一度に通知する最大件数
 # FastAPI設定
 API_TITLE = "IT News Live API"
 API_DESCRIPTION = "ITニュースを収集し、Geminiで分析・配信するAPI"
-API_VERSION = "1.2.0"
+API_VERSION = "1.3.2"
 
 # ランキングの減衰係数（経過日数に応じて重要度を減衰させるためのテーブル）
 FRESHNESS_TABLE = {
