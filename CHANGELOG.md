@@ -13,6 +13,24 @@
 - **PostgreSQL への移行**: `db.py` の実装切り替え（Service 層以上は変更不要）
 
 
+## [v1.3.2] - 2026-07-10
+
+複数 RSS ソースへの対応と、ユーザー関心トピックに基づくパーソナライズスコアリングを導入。日付パースの堅牢化、Gemini リトライの強化、記事 ID 重複の防止により、マルチソース運用時の安定性を向上しました。
+
+### Added
+- RSS ソースの追加: TechCrunch / The Verge / Ars Technica / GitHub Blog（既存の Hacker News に加え、計 5 ソースから収集）
+- `USER_PREFERENCES` の導入: ユーザーの関心トピックをプロンプトに反映し、パーソナライズされた重要度スコアリングに対応
+- `parse_rss_date` の追加: RFC 822 / ISO 8601 の両形式に対応し、パース失敗時は現在時刻へフォールバック
+- `article_analyses` テーブルに `(article_id, batch_id)` の UNIQUE 制約およびユニークインデックスを追加
+
+### Changed
+- ソース別取得上限を `SOURCE_FETCH_LIMIT`（20 件）として分離し、全ソースの記事を集約してから 1 回だけ分析・ランキングを実行するフローへ変更
+- Gemini API のリトライ強化: 503 / UNAVAILABLE もリトライ対象に追加、指数バックオフを採用、失敗時は重要度 0 のダミーレコードを生成してバッチ全体を継続
+
+### Fixed
+- `INSERT OR IGNORE` でスキップされた際に誤った `article_id` が割り当てられる不具合を修正（`rowcount` 判定と URL からの ID 再取得）
+- Gemini 分析前に `article_id` で重複排除し、同一記事の二重分析を防止
+
 ## [v1.3.1] - 2026-06-24
 
 Docker Compose による API サーバーの死活監視と自動復旧を強化。ヘルスチェックエンドポイントの追加と Compose 側の運用設定を整備し、コンテナ環境でのサービス信頼性を向上しました。
