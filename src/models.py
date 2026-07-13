@@ -88,14 +88,15 @@ class UserPreference:
 #　ユーザーからのいいね👍のフィードバックを表すデータクラス
 @dataclass
 class ArticleFeedback:
-    id:Optional[int] = None
-    article_id:int
-    user_id:int
-    is_liked:bool
-    created_at:str = field(default_factory=lambda: datetime.now().isoformat())
+    article_id: int
+    user_id: int
+    is_liked: bool
+    id: Optional[int] = None
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self):
         return asdict(self)
+
 
 # ─── Pydanticリクエストボディの定義 ───────────────────────
 # フロントエンド（UI）から送られてくるデータの「型チェック」を自動化します

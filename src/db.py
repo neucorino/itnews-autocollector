@@ -1,7 +1,8 @@
 import logging
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List
 from src import config
 from src import models 
 from src import queries
@@ -32,6 +33,16 @@ class DatabaseManager:
             logger.error(f"DB接続クローズ時にエラー: {e}")
         return None  # 例外を握りつぶさない（False と同義だが意図を明示）
 
+    @contextmanager
+    def get_connection(self) -> Iterator[sqlite3.Connection]:
+        """CRUD用に接続を返す。外部キー制約を有効化したうえで yield する。"""
+        self.conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            yield self.conn
+        except Exception:
+            self.conn.rollback()
+            raise
+
     # ── セットアップ ──────────────────────────────────────────
 
     def _create_tables(self) -> None:
@@ -42,6 +53,9 @@ class DatabaseManager:
             queries.CREATE_ARTICLE_ANALYSES,
             queries.CREATE_ARTICLE_ANALYSES_UNIQUE_INDEX,
             queries.CREATE_RANKINGS,
+            queries.CREATE_USERS,
+            queries.CREATE_USER_PREFERENCES,
+            queries.CREATE_ARTICLE_FEEDBACKS,
         )
         with self.conn:
             for ddl in ddl_list:

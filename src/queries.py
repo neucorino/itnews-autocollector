@@ -61,6 +61,13 @@ CREATE_RANKINGS = """
     )
 """
 
+CREATE_USERS = """
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY,
+        created_at TEXT
+    )
+"""
+
 CREATE_USER_PREFERENCES = """
     CREATE TABLE IF NOT EXISTS user_preferences (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,6 +192,12 @@ GET_RANKED_ARTICLES_DYNAMIC = """
 """
 
 # ── ユーザーの興味関心を表すクエリ ────────────────────────────────────────────
+
+# クライアント指定の user_id を users に確保する（既存ならスキップ）
+ENSURE_USER = """
+    INSERT OR IGNORE INTO users (id, created_at)
+    VALUES (:id, :created_at)
+"""
 
 # ユーザーの興味分野を保存/更新（既存があれば上書きするために一旦削除して挿入する戦略）
 DELETE_PREFERENCES = """

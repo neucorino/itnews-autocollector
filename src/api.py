@@ -2,7 +2,12 @@ import logging
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.models import NewsListResponse, UserPreferencesRequest, FeedbackRequest
+from src.models import (
+    NewsListResponse,
+    UserPreferencesRequest,
+    FeedbackRequest,
+    ArticleFeedback,
+)
 from src import config
 from src import crud
 from src.db import DatabaseManager
