@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     def __init__(self, db_path: str = str(config.DB_PATH)) -> None:
         self.conn = sqlite3.connect(db_path)
+        self.conn.execute("PRAGMA foreign_keys = ON") #外部キー制約を有効にする(SQLiteの設定)
         self.conn.row_factory = sqlite3.Row
         logger.info(f"DB接続を開始: {db_path}")
         self._create_tables()
@@ -95,6 +96,7 @@ class DatabaseManager:
         logger.info(f"{len(articles)}件の記事を保存しました")
         return articles
 
+    # ── 記事のID取得 ──────────────────────────────────────────────
     def _fetch_article_id_by_url(self, url: str) -> int:
         """INSERT OR IGNORE でスキップされた記事の id を URL で引く。"""
         row = self.conn.execute(
@@ -183,3 +185,4 @@ class DatabaseManager:
             raise e
         finally:
             conn.close()
+

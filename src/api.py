@@ -1,8 +1,10 @@
 import logging
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from src.models import NewsListResponse
+
+from src.models import NewsListResponse, UserPreferencesRequest, FeedbackRequest
 from src import config
+from src import crud
 from src.db import DatabaseManager
 
 # ログの設定
@@ -61,6 +63,40 @@ def get_news(
     except Exception as e:
         logger.error(f"ニュースの取得に失敗しました: {e}")
         raise HTTPException(status_code=500, detail="ニュースの取得に失敗しました")
+
+
+@app.post("/users/preferences", tags=["User Preferences"])
+def set_user_preferences(request: UserPreferencesRequest):
+    """
+    ユーザーがチェックボックスで選んだ興味のあるIT分野を一括保存・更新する
+    """
+    try:
+        # 一括更新用の関数をcrud側に任せる
+        crud.update_user_preferences_list(request.user_id, request.categories)
+        return {"status": "success", "message": "興味分野を更新しました"}
+    except Exception as e:
+        logger.error(f"興味分野の保存に失敗しました: {e}")
+        raise HTTPException(status_code=500, detail="興味分野の保存に失敗しました")
+
+
+@app.post("/articles/{article_id}/like", tags=["Feedback"])
+def toggle_article_like(article_id: int, request: FeedbackRequest):
+    """
+    記事に対する「いいね👍」のフィードバックを保存する
+    """
+    try:
+        # dataclassの型に合わせてオブジェクトを生成
+        feedback_data = ArticleFeedback(
+            article_id=article_id,
+            user_id=request.user_id,
+            is_liked=request.is_liked
+        )
+        crud.save_article_feedback(feedback_data)
+        return {"status": "success", "message": "フィードバックを記録しました"}
+    except Exception as e:
+        logger.error(f"フィードバックの保存に失敗しました: {e}")
+        raise HTTPException(status_code=500, detail="フィードバックの保存に失敗しました")
+
 
 @app.get("/health", tags=["System"])
 def health_check():

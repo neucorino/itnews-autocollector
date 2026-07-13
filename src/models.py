@@ -67,7 +67,43 @@ class RankedArticleResponse(BaseModel):
     rank_score: Optional[float] = None
     published_at: Optional[str] = None
 
+
 # /news で返すリスト全体の設計図（件数なども含めると親切です）
 class NewsListResponse(BaseModel):
     total_count: int
     rankedresponses: List[RankedArticleResponse]
+
+
+#ユーザーの興味関心を表すデータクラス
+@dataclass
+class UserPreference:
+    user_id:int
+    category:str
+    updated_at:str = field(default_factory=lambda: datetime.now().isoformat())
+
+    def to_dict(self):
+        return asdict(self)
+
+
+#　ユーザーからのいいね👍のフィードバックを表すデータクラス
+@dataclass
+class ArticleFeedback:
+    id:Optional[int] = None
+    article_id:int
+    user_id:int
+    is_liked:bool
+    created_at:str = field(default_factory=lambda: datetime.now().isoformat())
+
+    def to_dict(self):
+        return asdict(self)
+
+# ─── Pydanticリクエストボディの定義 ───────────────────────
+# フロントエンド（UI）から送られてくるデータの「型チェック」を自動化します
+
+class UserPreferencesRequest(BaseModel):
+    user_id: int
+    categories: List[str]  # UIのチェックボックスで選ばれた配列（例: ["AI", "Security"]）
+
+class FeedbackRequest(BaseModel):
+    user_id: int
+    is_liked: bool

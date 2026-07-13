@@ -2,7 +2,7 @@
 it-news-system のデータベースクエリ定義モジュール
 """
 
-# テーブル作成クエリ
+# ── テーブル作成クエリ ──────────────────────────────────────────
 CREATE_BATCHES = """
     CREATE TABLE IF NOT EXISTS batches (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +61,29 @@ CREATE_RANKINGS = """
     )
 """
 
-# INSERT クエリ
+CREATE_USER_PREFERENCES = """
+    CREATE TABLE IF NOT EXISTS user_preferences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        category TEXT NOT NULL,
+        updated_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+"""
+
+CREATE_ARTICLE_FEEDBACKS = """
+    CREATE TABLE IF NOT EXISTS article_feedbacks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        is_liked BOOLEAN NOT NULL,
+        created_at TEXT,
+        FOREIGN KEY (article_id) REFERENCES articles(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+"""
+
+# ── INSERT クエリ ──────────────────────────────────────────────
 INSERT_ARTICLE = """
     INSERT OR IGNORE INTO articles (title, url, source, summary, published_at)
     VALUES (:title, :url, :source, :summary, :published_at)
@@ -91,7 +113,7 @@ FINISH_BATCH = """
     WHERE id = :id
 """
 
-# 通知対象取得クエリ
+# ── 通知対象取得クエリ ────────────────────────────────────────────
 GET_NOTIFICATION_TARGETS = """
     SELECT
         a.id,
@@ -160,4 +182,27 @@ GET_RANKED_ARTICLES_DYNAMIC = """
         article_id DESC
 
     LIMIT :ranking_limit
+"""
+
+# ── ユーザーの興味関心を表すクエリ ────────────────────────────────────────────
+
+# ユーザーの興味分野を保存/更新（既存があれば上書きするために一旦削除して挿入する戦略）
+DELETE_PREFERENCES = """
+    DELETE FROM user_preferences WHERE user_id = :user_id
+"""
+
+INSERT_PREFERENCE = """
+    INSERT INTO user_preferences (user_id, category, updated_at)
+    VALUES (:user_id, :category, :updated_at)
+"""
+
+# 記事のいいねを保存
+INSERT_FEEDBACK = """
+    INSERT INTO article_feedbacks (article_id, user_id, is_liked, created_at)
+    VALUES (:article_id, :user_id, :is_liked, :created_at)
+"""
+
+# ユーザーの興味分野を取得
+GET_PREFERENCES = """
+    SELECT category FROM user_preferences WHERE user_id = :user_id
 """
