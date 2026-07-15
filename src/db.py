@@ -34,13 +34,15 @@ class DatabaseManager:
 
     @contextmanager
     def get_connection(self) -> Iterator[sqlite3.Connection]:
-        """CRUD用に接続を返す。外部キー制約を有効化したうえで yield する。"""
+        """CRUD用に接続を返す。成功時は commit、失敗時は rollback する。"""
         self.conn.execute("PRAGMA foreign_keys = ON")
         try:
             yield self.conn
         except Exception:
             self.conn.rollback()
             raise
+        else:
+            self.conn.commit()
 
     # ── セットアップ ──────────────────────────────────────────
 

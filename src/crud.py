@@ -24,15 +24,14 @@ db = DatabaseManager()
 def bulk_insert_articles(db: DatabaseManager, articles: List[Article]) -> List[Article]:
     """記事を一括保存し、id を付与して返す。URL重複はスキップし既存idを取得する。"""
     with db.get_connection() as conn:
-        with conn:
-            for article in articles:
-                cursor = conn.execute(queries.INSERT_ARTICLE, article.to_dict())
-                # INSERT OR IGNORE でスキップされた場合、lastrowid は直前の INSERT の id のまま
-                # 残るため rowcount で判定し、重複時は URL から正しい id を引く
-                if cursor.rowcount > 0:
-                    article.id = cursor.lastrowid
-                else:
-                    article.id = _fetch_article_id_by_url(conn, article.url)
+        for article in articles:
+            cursor = conn.execute(queries.INSERT_ARTICLE, article.to_dict())
+            # INSERT OR IGNORE でスキップされた場合、lastrowid は直前の INSERT の id のまま
+            # 残るため rowcount で判定し、重複時は URL から正しい id を引く
+            if cursor.rowcount > 0:
+                article.id = cursor.lastrowid
+            else:
+                article.id = _fetch_article_id_by_url(conn, article.url)
     logger.info(f"{len(articles)}件の記事を保存しました")
     return articles
 
@@ -58,8 +57,7 @@ def bulk_insert_analyses(db: DatabaseManager, analyses: List[ArticleAnalysis]) -
     ]
     try:
         with db.get_connection() as conn:
-            with conn:
-                conn.executemany(queries.INSERT_ANALYSES, records)
+            conn.executemany(queries.INSERT_ANALYSES, records)
         logger.info(f"{len(records)}件の分析結果を保存しました")
     except Exception as e:
         raise DatabaseError(f"分析結果の保存に失敗しました: {e}") from e
@@ -75,8 +73,7 @@ def bulk_insert_rankings(db: DatabaseManager, rankings: List[Ranking]) -> None:
     records = [r.to_dict() for r in rankings]
     try:
         with db.get_connection() as conn:
-            with conn:
-                conn.executemany(queries.INSERT_RANKING, records)
+            conn.executemany(queries.INSERT_RANKING, records)
         logger.info(f"{len(rankings)}件のランキングを保存しました")
     except Exception as e:
         raise DatabaseError(f"ランキングの保存に失敗しました: {e}") from e

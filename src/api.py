@@ -65,6 +65,8 @@ def get_news(
             raise HTTPException(status_code=404, detail="ニュースデータが見つかりませんでした")
             
         return {"total_count": len(news_list), "rankedresponses": news_list}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"ニュースの取得に失敗しました: {e}")
         raise HTTPException(status_code=500, detail="ニュースの取得に失敗しました")
