@@ -217,5 +217,7 @@ INSERT_FEEDBACK = """
 
 # ユーザーの興味分野を取得
 GET_PREFERENCES = """
-    SELECT category FROM user_preferences WHERE user_id = :user_id
+    SELECT user_id, category, updated_at
+    FROM user_preferences
+    WHERE user_id = :user_id
 """

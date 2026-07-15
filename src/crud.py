@@ -143,9 +143,32 @@ def get_user_preferences(db: DatabaseManager, user_id: int) -> List[UserPreferen
             raise
 
 
-def save_user_preferences(db: DatabaseManager, pref: UserPreference) -> None:
+def update_user_preferences_list(
+    db: DatabaseManager, user_id: int, categories: List[str]
+) -> None:
     """
     興味分野を一括保存（既存は全削除してから新規保存）
+    """
+    now = datetime.now().isoformat()
+    with db.get_connection() as conn:
+        try:
+            _ensure_user(conn, user_id)
+            conn.execute(queries.DELETE_PREFERENCES, {"user_id": user_id})
+            for category in categories:
+                conn.execute(
+                    queries.INSERT_PREFERENCE,
+                    {"user_id": user_id, "category": category, "updated_at": now},
+                )
+            conn.commit()
+            logger.info(f"User preferences updated for user {user_id}: {categories}")
+        except Exception as e:
+            logger.error(f"Failed to update preferences for user {user_id}: {e}")
+            raise
+
+
+def save_user_preferences(db: DatabaseManager, pref: UserPreference) -> None:
+    """
+    興味分野を1件保存（既存は全削除してから新規保存）
     """
     with db.get_connection() as conn:
         try:

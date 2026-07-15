@@ -77,9 +77,9 @@ class NewsListResponse(BaseModel):
 #ユーザーの興味関心を表すデータクラス
 @dataclass
 class UserPreference:
-    user_id:int
-    category:str
-    updated_at:str = Field(default_factory=lambda: datetime.now().isoformat())
+    user_id: int
+    category: str
+    updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self):
         return asdict(self)
@@ -92,7 +92,7 @@ class ArticleFeedback:
     user_id: int
     is_liked: bool
     id: Optional[int] = None
-    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self):
         return asdict(self)

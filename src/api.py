@@ -132,7 +132,7 @@ def like_article(
             article_id=article_id,
             is_liked=payload.is_liked
         )
-        crud.add_article_feedback(db=db, feedback=feedback_data)
+        crud.save_article_feedback(db=db, feedback=feedback_data)
         
         status_msg = "liked" if payload.is_liked else "unliked"
         return {"status": "success", "message": f"Article {article_id} has been {status_msg} by user {payload.user_id}."}
