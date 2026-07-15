@@ -32,9 +32,10 @@ app.add_middleware(
     allow_headers=["*"] # すべてのHTTPヘッダーを許可
 )
 
-# データベース操作を共通化するための関数
+# データベース操作を共通化するための関数（リクエスト終了時に接続を閉じる）
 def get_db():
-    return DatabaseManager()
+    with DatabaseManager() as db:
+        yield db
 
 @app.get("/", tags=["Root"])
 def read_root():
