@@ -1,6 +1,6 @@
 from dataclasses import dataclass,asdict,field
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
@@ -79,7 +79,7 @@ class NewsListResponse(BaseModel):
 class UserPreference:
     user_id:int
     category:str
-    updated_at:str = field(default_factory=lambda: datetime.now().isoformat())
+    updated_at:str = Field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self):
         return asdict(self)
@@ -92,7 +92,7 @@ class ArticleFeedback:
     user_id: int
     is_liked: bool
     id: Optional[int] = None
-    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self):
         return asdict(self)
@@ -102,9 +102,11 @@ class ArticleFeedback:
 # フロントエンド（UI）から送られてくるデータの「型チェック」を自動化します
 
 class UserPreferencesRequest(BaseModel):
-    user_id: int
-    categories: List[str]  # UIのチェックボックスで選ばれた配列（例: ["AI", "Security"]）
+    """ユーザー興味分野の一括更新リクエスト"""
+    user_id: int = Field(..., description="操作しているユーザーのID", example=1)
+    categories: List[str] = Field(..., description="チェックされたカテゴリーのリスト", example=["AI", "Security"])
 
-class FeedbackRequest(BaseModel):
-    user_id: int
-    is_liked: bool
+class ArticleLikeRequest(BaseModel):
+    """いいねフィードバックのリクエスト"""
+    user_id: int = Field(..., description="操作しているユーザーのID", example=1)
+    is_liked: bool = Field(True, description="Trueならいいね👍、Falseなら取り消し等")
