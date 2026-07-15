@@ -156,7 +156,6 @@ def update_user_preferences_list(
                     queries.INSERT_PREFERENCE,
                     {"user_id": user_id, "category": category, "updated_at": now},
                 )
-            conn.commit()
             logger.info(f"User preferences updated for user {user_id}: {categories}")
         except Exception as e:
             logger.error(f"Failed to update preferences for user {user_id}: {e}")
@@ -172,7 +171,6 @@ def save_user_preferences(db: DatabaseManager, pref: UserPreference) -> None:
             _ensure_user(conn, pref.user_id)  # ユーザーが存在しなければ追加
             conn.execute(queries.DELETE_PREFERENCES, {"user_id": pref.user_id})
             conn.execute(queries.INSERT_PREFERENCE, pref.to_dict())
-            conn.commit()
             logger.info(f"User preferences updated for user {pref.user_id}: {pref.category}")
         except Exception as e:
             logger.error(f"Failed to update preferences for user {pref.user_id}: {e}")
@@ -187,7 +185,6 @@ def add_user_preference(db: DatabaseManager, pref: UserPreference) -> None:
         try:
             _ensure_user(conn, pref.user_id)
             conn.execute(queries.INSERT_PREFERENCE, pref.to_dict())
-            conn.commit()
             logger.info(f"User preference added for user {pref.user_id}: {pref.category}")
         except Exception as e:
             logger.error(f"Failed to add preference for user {pref.user_id}: {e}")
@@ -208,7 +205,6 @@ def save_article_feedback(db: DatabaseManager, feedback: ArticleFeedback):
         try:
             _ensure_user(conn, feedback.user_id)
             conn.execute(queries.INSERT_FEEDBACK, feedback.to_dict())
-            conn.commit()
             logger.info(f"Article Feedback saved: article={feedback.article_id}, user={feedback.user_id}")
         except Exception as e:
             logger.error(f"Article Feedback save failed: {e}")

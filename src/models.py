@@ -109,4 +109,4 @@ class UserPreferencesRequest(BaseModel):
 class ArticleLikeRequest(BaseModel):
     """いいねフィードバックのリクエスト"""
     user_id: int = Field(..., description="操作しているユーザーのID", example=1)
-    is_liked: bool = Field(True, description="Trueならいいね👍、Falseなら取り消し等")
+    is_liked: bool = Field(..., description="Trueならいいね👍、Falseなら取り消し等")
