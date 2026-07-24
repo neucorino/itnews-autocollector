@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 #Gemini APIの呼び出しとプロンプトの設定
 def analyze_article_with_gemini(
     id: int,
-    title: str, 
-    summary: str, 
+    title: str,
+    summary: str,
     max_retries: int = config.GEMINI_MAX_RETRIES,
     user_preferences: str = config.USER_PREFERENCES
     ) -> Optional[Dict[str, Any]]:
@@ -25,11 +25,11 @@ def analyze_article_with_gemini(
     """記事のタイトルと要約をGemini APIに送信して分析結果を辞書で返す"""
     prompt = config.PROMPT_TEMPLATE.format(
         id=id,
-        title=title, 
-        summary=summary, 
+        title=title,
+        summary=summary,
         user_preferences=user_preferences
     )
-    
+
     system_instruction = config.SYSTEM_INSTRUCTION
 
     client = genai.Client(api_key=config.GEMINI_API_KEY)
@@ -41,7 +41,7 @@ def analyze_article_with_gemini(
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
-                    response_mime_type="application/json", 
+                    response_mime_type="application/json",
                     temperature=config.TEMPERATURE,
                     tool_config=types.ToolConfig(
                         function_calling_config=types.FunctionCallingConfig(
@@ -63,9 +63,9 @@ def analyze_article_with_gemini(
             error_str = str(e)
             # 💡 429（レート制限）に加えて、503（サーバー一時混雑）もリトライ対象にする
             is_temporary_error = (
-                "429" in error_str 
-                or "RESOURCE_EXHAUSTED" in error_str 
-                or "503" in error_str 
+                "429" in error_str
+                or "RESOURCE_EXHAUSTED" in error_str
+                or "503" in error_str
                 or "UNAVAILABLE" in error_str
             )
 
@@ -77,7 +77,7 @@ def analyze_article_with_gemini(
                 )
                 time.sleep(wait_time)
             else:
-                # 🛑 認証エラーやプログラムのバグなど、リトライしても無駄なものは即座に諦める
+                # 認証エラーやプログラムのバグなど、リトライしても無駄なものは即座に諦める
                 logger.exception(f"回復不能なエラーのため、Gemini APIへのリクエストを中断します: {title}")
                 return None
 

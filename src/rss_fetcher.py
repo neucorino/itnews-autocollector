@@ -40,18 +40,18 @@ def fetch_rss(rss_url: str, source: str) -> List[Article]:
     feed = feedparser.parse(rss_url)
     articles = []
     if feed.bozo:
-        raise RSSFetchError(f"RSSの形式が壊れています: {rss_url}") 
+        raise RSSFetchError(f"RSSの形式が壊れています: {rss_url}")
 
     for entry in feed.entries[:config.SOURCE_FETCH_LIMIT]:
         logger.info(f"記事取得: {entry.title}")
 
         # entry から日付文字列を安全に取得
         published_str = entry.get("published") or entry.get("updated")
-        
+
         # 日付文字列をdatetimeオブジェクトに変換
         published_dt = parse_rss_date(published_str)
-        
-       # データベース保存用に指定の文字フォーマットに成形
+
+        # データベース保存用に指定の文字フォーマットに成形
         formatted_date = published_dt.strftime("%Y-%m-%d %H:%M:%S")
 
         article = Article(
@@ -61,7 +61,7 @@ def fetch_rss(rss_url: str, source: str) -> List[Article]:
             summary=entry.get("summary", ""),
             published_at=formatted_date,
         )
-        
+
         articles.append(article)
 
     return articles

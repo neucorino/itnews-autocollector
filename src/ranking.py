@@ -13,7 +13,7 @@ class RankingGenerator:
 
     def generate_rankings(self, batch_id: int, lookback_days: int = config.NOTIFICATION_LOOKBACK_DAYS) -> List[Ranking]:
         """重要度の高い記事をランキング形式で取得"""
-        
+
         # SQL文のプレースホルダー名（キー）と config の設定値を合わせる
         params = {
             "batch_id": batch_id,
@@ -21,7 +21,7 @@ class RankingGenerator:
             "ranking_limit": getattr(config, 'RANKING_LIMIT', 10), # 確実に10が渡るようにする
             "min_importance": getattr(config, 'IMPORTANCE_THRESHOLD', 6)
         }
-        
+
         # paramsを一緒に渡すことで、SQLの :ranking_limit に 10 がカチッと入る！
         ranked_articles = self.db.conn.execute(
             queries.GET_RANKED_ARTICLES_DYNAMIC, params

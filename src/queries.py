@@ -28,7 +28,7 @@ CREATE_ARTICLE_ANALYSES = """
     CREATE TABLE IF NOT EXISTS article_analyses (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         article_id  INTEGER NOT NULL,
-        batch_id    INTEGER NOT NULL, 
+        batch_id    INTEGER NOT NULL,
         ai_summary  TEXT,
         importance  INTEGER,
         reason      TEXT,
@@ -98,10 +98,10 @@ INSERT_ARTICLE = """
 
 INSERT_ANALYSES = """
     INSERT OR IGNORE INTO article_analyses (
-        article_id, batch_id, ai_summary, 
+        article_id, batch_id, ai_summary,
         importance, reason, category, analyzed_at
     )
-    VALUES (:article_id, :batch_id, :ai_summary, 
+    VALUES (:article_id, :batch_id, :ai_summary,
             :importance, :reason, :category, :analyzed_at)
 """
 
@@ -115,8 +115,8 @@ START_NEW_BATCH = """
 """
 
 FINISH_BATCH = """
-    UPDATE batches 
-    SET ended_at = :ended_at, status = :status, new_articles_count = :new_articles_count 
+    UPDATE batches
+    SET ended_at = :ended_at, status = :status, new_articles_count = :new_articles_count
     WHERE id = :id
 """
 
@@ -137,8 +137,8 @@ GET_NOTIFICATION_TARGETS = """
     INNER JOIN articles a ON r.article_id = a.id
     INNER JOIN article_analyses aa ON r.analyses_id = aa.id
     WHERE r.batch_id = :batch_id
-      AND aa.importance >= :min_importance
-      AND a.published_at >= datetime('now', '-' || :lookback_days || ' days')
+    AND aa.importance >= :min_importance
+    AND a.published_at >= datetime('now', '-' || :lookback_days || ' days')
     ORDER BY r.rank ASC
     LIMIT :limit
 """
@@ -183,7 +183,7 @@ GET_RANKED_ARTICLES_DYNAMIC = """
             END ,2
         )AS rank_score
     FROM ranked
-    ORDER BY 
+    ORDER BY
         rank_score DESC,
         published_at DESC,
         article_id DESC

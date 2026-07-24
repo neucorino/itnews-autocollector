@@ -26,7 +26,7 @@ def build_email_body(articles: List[Dict[str, Any]]) -> str:
         rank = constants.EMAIL_RANK_EMOJIS[i] if i < len(constants.EMAIL_RANK_EMOJIS) else "📌"
 
         summary = a["ai_summary"].replace("\n", " ")
-        
+
         published = datetime.strptime(
             a["published_at"],
             "%Y-%m-%d %H:%M:%S"

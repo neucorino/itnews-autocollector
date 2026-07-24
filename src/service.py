@@ -19,12 +19,12 @@ class NewsService:
     def process_new_articles(self, rss_url: str, source: str) -> List[Article]:
         # 1. まずRSSから記事を全件フェッチする
         articles = rss_fetcher.fetch_rss(rss_url, source)
-        
+
         # 2. 💡 config.SOURCE_FETCH_LIMIT (20件) を使って、ソースごとに最大件数を制限する
         limit = getattr(config, "SOURCE_FETCH_LIMIT", 20)
         if articles:
             articles = articles[:limit]
-            
+
         logger.info(f"[{source}] から最大 {len(articles)} 件の記事をDBに保存します。")
         return crud.bulk_insert_articles(self.db, articles)
 
@@ -43,7 +43,7 @@ class NewsService:
         if ranked_articles is None:
             logger.exception(f"ランキングの生成に失敗しました（batch_id: {batch_id}）")
             return False
-        
+
         if len(ranked_articles) == 0:
             logger.warning("ランキング対象の記事がありませんでした。")
             return False
@@ -54,10 +54,10 @@ class NewsService:
 
     # 通知対象の絞り込みと取得
     def get_notification_targets(
-            self, 
-            batch_id: int, 
-            lookback_days: int = None, 
-            limit: int = None, 
+            self,
+            batch_id: int,
+            lookback_days: int = None,
+            limit: int = None,
             min_importance: int = None
         ) -> List[Dict[str, Any]]:
         """

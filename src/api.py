@@ -44,7 +44,7 @@ def read_root():
 
 @app.get("/news",response_model=NewsListResponse, tags=["News"])
 def get_news(
-    limit: int = 10,               
+    limit: int = 10,
     min_importance: int = 7,
     batch_id: int = 1,
     lookback_days: int = 7,
@@ -60,11 +60,11 @@ def get_news(
             "lookback_days": lookback_days
         }
         news_list = crud.get_news_from_db(db, params)
-        
+
         if not news_list:
             logger.warning("ニュースデータが見つかりませんでした")
             raise HTTPException(status_code=404, detail="ニュースデータが見つかりませんでした")
-            
+
         return {"total_count": len(news_list), "rankedresponses": news_list}
     except HTTPException:
         raise

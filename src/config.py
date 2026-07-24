@@ -38,8 +38,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL_ID = "gemini-2.5-flash-lite"
 TEMPERATURE = 1.0
 USER_PREFERENCES = """
-プログラミング言語 (Python), 
-開発ツールの新機能, 
+プログラミング言語 (Python),
+開発ツールの新機能,
 バックエンド技術スタック,
 データベース技術スタック,
 インフラ技術スタック,
@@ -82,11 +82,11 @@ SYSTEM_INSTRUCTION = """
 
 出力形式は、必ず以下のJSONスキーマを厳守して返してください：
 {
-  "id": "記事のID（必ず数字）",
-  "ai_summary": "3行で簡潔に要約した文章（必ず日本語）",
-  "importance": 1から10の整数値,
-  "reason": "今回のユーザーの関心トピックと照らし合わせ、なぜこの重要度スコアにしたのかの具体的な理由（必ず日本語）",
-  "category": "技術カテゴリ"
+"id": "記事のID（必ず数字）",
+"ai_summary": "3行で簡潔に要約した文章（必ず日本語）",
+"importance": 1から10の整数値,
+"reason": "今回のユーザーの関心トピックと照らし合わせ、なぜこの重要度スコアにしたのかの具体的な理由（必ず日本語）",
+"category": "技術カテゴリ"
 }
 """
 
@@ -130,37 +130,37 @@ def validate_config() -> None:
     """
     設定値の妥当性を検証。エラーが見つかった場合は ConfigValidationError を raise。
     """
-    
+
     # 必須環境変数チェック
     required_env = ["GEMINI_API_KEY", "GMAIL_USER", "GMAIL_PASS"]
     for env_name in required_env:
         if not os.getenv(env_name):
             raise ConfigValidationError(f"必須環境変数が未設定です: {env_name}")
-    
+
     # 数値設定の範囲チェック
     if not (1 <= IMPORTANCE_THRESHOLD <= 10):
         raise ConfigValidationError(
             f"IMPORTANCE_THRESHOLD は 1-10 の範囲である必要があります (現在値: {IMPORTANCE_THRESHOLD})"
         )
-    
+
     if NOTIFICATION_LIMIT <= 0:
         raise ConfigValidationError(
             f"NOTIFICATION_LIMIT は正数である必要があります (現在値: {NOTIFICATION_LIMIT})"
         )
-    
+
     if NOTIFICATION_LOOKBACK_DAYS <= 0:
         raise ConfigValidationError(
             f"NOTIFICATION_LOOKBACK_DAYS は正数である必要があります (現在値: {NOTIFICATION_LOOKBACK_DAYS})"
         )
-    
+
     if GEMINI_MAX_RETRIES <= 0:
         raise ConfigValidationError(
             f"GEMINI_MAX_RETRIES は正数である必要があります (現在値: {GEMINI_MAX_RETRIES})"
         )
-    
+
     # ディレクトリ存在確認
     if not BASE_DIR.exists():
         raise ConfigValidationError(f"BASE_DIR が存在しません: {BASE_DIR}")
-    
+
     # ログディレクトリ作成
     LOG_FILE.parent.mkdir(exist_ok=True, parents=True)
