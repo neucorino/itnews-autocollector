@@ -136,7 +136,7 @@ GET_NOTIFICATION_TARGETS = """
     FROM rankings r
     INNER JOIN articles a ON r.article_id = a.id
     INNER JOIN article_analyses aa ON r.analyses_id = aa.id
-    WHERE r.batch_id = :batch_id
+    WHERE r.batch_id = COALESCE(:batch_id, (SELECT MAX(batch_id) FROM rankings))
     AND aa.importance >= :min_importance
     AND a.published_at >= datetime('now', '-' || :lookback_days || ' days')
     ORDER BY r.rank ASC

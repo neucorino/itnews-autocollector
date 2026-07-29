@@ -1,7 +1,8 @@
 import logging
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from typing import List,Optional
+
 
 from src.models import (
     ArticleFeedback,
@@ -26,7 +27,7 @@ app = FastAPI(
 """CORSの設定"""
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173","http://127.0.0.1:5173",],
     allow_credentials=True,
     allow_methods=["*"], # GET, POST, PUT, DELETEなどをすべて許可
     allow_headers=["*"] # すべてのHTTPヘッダーを許可
@@ -42,11 +43,11 @@ def read_root():
     """APIの生存確認用"""
     return {"status": "online", "message": "API is connected to SQLite"}
 
-@app.get("/news",response_model=NewsListResponse, tags=["News"])
+@app.get("/v1/rankings",response_model=NewsListResponse, tags=["News"])
 def get_news(
     limit: int = 10,
     min_importance: int = 7,
-    batch_id: int = 1,
+    batch_id: Optional[int] = None,
     lookback_days: int = 7,
     db: DatabaseManager = Depends(get_db)
 ):
