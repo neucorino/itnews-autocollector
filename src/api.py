@@ -64,7 +64,8 @@ def get_news(
 
         if not news_list:
             logger.warning("ニュースデータが見つかりませんでした")
-            raise HTTPException(status_code=404, detail="ニュースデータが見つかりませんでした")
+            # ランキング未作成・フィルタ不一致はエラーではなく空結果として返す
+            return {"total_count": 0, "rankedresponses": []}
 
         return {"total_count": len(news_list), "rankedresponses": news_list}
     except HTTPException:

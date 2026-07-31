@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from src import config
 from src import queries
@@ -81,6 +81,16 @@ def bulk_insert_rankings(db: DatabaseManager, rankings: List[Ranking]) -> None:
 
 # ── 通知対象の取得 ─────────────────────────────────────────
 
+def _resolve_batch_id(conn: sqlite3.Connection, batch_id: Optional[int]) -> Optional[int]:
+    """batch_id 未指定時は rankings の最新バッチを返す。ランキングが無い場合は None。"""
+    if batch_id is not None:
+        return batch_id
+    row = conn.execute("SELECT MAX(batch_id) FROM rankings").fetchone()
+    if row is None or row[0] is None:
+        return None
+    return int(row[0])
+
+
 def fetch_notification_targets(
     db: DatabaseManager,
     batch_id: int,
@@ -108,10 +118,17 @@ def fetch_notification_targets(
 
 
 def get_news_from_db(db: DatabaseManager, params: dict):
-    """通知対象の取得（API用）"""
+    """通知対象の取得（API用）。batch_id 未指定時は最新バッチを解決する。"""
     try:
         with db.get_connection() as conn:
-            rows = conn.execute(queries.GET_NOTIFICATION_TARGETS, params).fetchall()
+            resolved_batch_id = _resolve_batch_id(conn, params.get("batch_id"))
+            # rankings が空のとき COALESCE(NULL, NULL) → `batch_id = NULL` となり
+            # 0件になる問題を避け、明示的に空リストを返す
+            if resolved_batch_id is None:
+                logger.info("ランキングデータが存在しないため空の結果を返します")
+                return []
+            query_params = {**params, "batch_id": resolved_batch_id}
+            rows = conn.execute(queries.GET_NOTIFICATION_TARGETS, query_params).fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
         logger.error(f"Database error: {e}")
