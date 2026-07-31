@@ -9,8 +9,8 @@ export const fetchRankedArticles = async (): Promise<RankedArticleResponse[]> =>
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`)
     }
-    const data: RankedArticleResponse[] = await response.json()
-    return data
+    const data = await response.json()
+    return data.rankedresponses
   } catch (error) {
     console.error('ニュースの取得に失敗しました:', error)
     return []

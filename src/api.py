@@ -29,8 +29,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5173","http://127.0.0.1:5173",],
     allow_credentials=True,
-    allow_methods=["*"], # GET, POST, PUT, DELETEなどをすべて許可
-    allow_headers=["*"] # すべてのHTTPヘッダーを許可
+    allow_methods=["*"],# GET, POST, PUT, DELETEなどをすべて許可
+    allow_headers=["*"]# すべてのHTTPヘッダーを許可
 )
 
 # データベース操作を共通化するための関数（リクエスト終了時に接続を閉じる）

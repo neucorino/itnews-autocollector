@@ -4,27 +4,11 @@ import { ArticleCard } from './ArticleCard'
 import type { RankedArticleResponse } from './types'
 import { fetchRankedArticles } from './api'
 
-// バックエンドから届く想定の新しいダミーデータ
-const dummyArticle: RankedArticleResponse = {
-  id: 101,
-  title: 'FastAPI + Reactで構築する最新Webアプリ開発ロードマップ',
-  url: 'https://example.com',
-  source: 'GitHub Blog',
-  ai_summary:
-    'FastAPIの型安全なREST APIと、React+TypeScriptのコンポーネント指向UIを連携させる実践的な手法を解説しています。',
-  importance: 9,
-  category: 'Web開発',
-  rank: 1,
-  rank_score: 8.8,
-  published_at: '2026-07-29',
-}
-
 function App() {
-  const [articles, setArticles] = useState<RankedArticleResponse[]>([dummyArticle])
+  const [articles, setArticles] = useState<RankedArticleResponse[]>([])
   const [loading, setLoading] = useState<boolean>(true)
 
   // ※ バックエンド起動時はコメントアウトを解除してAPI通信できます
-
   useEffect(() => {
     const loadArticles = async () => {
       setLoading(true)

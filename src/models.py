@@ -68,7 +68,7 @@ class RankedArticleResponse(BaseModel):
     published_at: Optional[str] = None
 
 
-# /news で返すリスト全体の設計図（件数なども含めると親切です）
+# /rankings で返すリスト全体の設計図（件数なども含めると親切です）
 class NewsListResponse(BaseModel):
     total_count: int
     rankedresponses: List[RankedArticleResponse]
