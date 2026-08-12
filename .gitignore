@@ -11,3 +11,5 @@ news_database.csv
 # 実行ファイルやログ
 *.log
 chromedriver
+
+docs/
