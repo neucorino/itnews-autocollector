@@ -7,8 +7,11 @@ from src.exceptions import ConfigValidationError
 load_dotenv()
 
 
-#プロジェクトのルート
-BASE_DIR = Path(__file__).resolve().parent.parent
+# プロジェクトルート（data/ と logs/ の基準）
+# ローカルは backend/src から2つ上、コンテナは /app/src から1つ上（/app）
+_SRC_DIR = Path(__file__).resolve().parent
+_LOCAL_ROOT = _SRC_DIR.parent.parent
+BASE_DIR = _LOCAL_ROOT if (_LOCAL_ROOT / "compose.yaml").exists() else _SRC_DIR.parent
 
 
 #Database

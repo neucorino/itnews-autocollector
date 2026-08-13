@@ -13,3 +13,5 @@ news_database.csv
 chromedriver
 
 docs/
+
+.cursorignore

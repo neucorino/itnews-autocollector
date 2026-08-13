@@ -1,7 +1,9 @@
 services:
   # 1. APIサーバー
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: it-news-api
     ports:
       - "8080:8080"
@@ -23,7 +25,9 @@ services:
 
   # 2. 収集バッチ（必要に応じて起動）
   worker:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: it-news-worker
     volumes:
       - ./data:/app/data

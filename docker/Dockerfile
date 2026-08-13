@@ -29,7 +29,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # アプリケーションのソースコードと、設定ファイルを配置
-COPY src/ ./src/
+COPY backend/src/ ./src
 
 # データ永続化・ログ用のディレクトリをコンテナ内に事前に確保
 RUN mkdir -p data logs
