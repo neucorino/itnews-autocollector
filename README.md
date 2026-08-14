@@ -2,7 +2,7 @@
 
 # IT News Auto-Collector & Delivery System
 
-**Version 1.5.0** — React 19 + TypeScript + ViteによるWeb UIを新規追加し、ランキング記事の閲覧・いいね操作をブラウザから実現。APIクライアントと型定義を整理、ランキングAPIのルート統一・バッチ解決ロジックの最適化など、フロントエンド連携を大幅に強化。
+**Version 1.5.1** — バックエンドを `backend/src/` へ、Dockerfile を `docker/` へ再配置し、フロントエンドとバックエンドのディレクトリ分離を明確化。ローカル／コンテナ双方でプロジェクトルートを正しく解決するようパス解決を調整。
 
 <p style="display: inline">
   <img src="https://img.shields.io/badge/-Python-F2C63C.svg?logo=python&style=for-the-badge">
@@ -107,6 +107,8 @@ v1.3.2  マルチソース収集とパーソナライズ基盤の構築
 v1.4.0  パーソナライズAPIの実装とDB基盤の堅牢化
 
 v1.5.0  Reactフロントエンドの導入
+
+v1.5.1  ディレクトリ構成の整理（backend / docker）
 ```
 
 ### Roadmap
@@ -238,7 +240,7 @@ flowchart TD
     end
 
     subgraph Frontend [Reactフロントエンド層]
-        ReactApp[Reactアプリケーション<br/>src/frontend/]
+        ReactApp[Reactアプリケーション<br/>frontend/]
         Vite[Vite Dev/Prod サーバー]
         Types[types.ts<br/>型定義]
         APIClient[api.ts<br/>APIクライアント]
@@ -335,29 +337,31 @@ docker compose ps
 it-news-system/
 ├── README.md
 ├── CHANGELOG.md
-├── Dockerfile              # コンテナイメージ定義
+├── docker/
+│   └── Dockerfile          # コンテナイメージ定義
 ├── compose.yaml            # Docker Compose サービス定義
 ├── requirements.txt
 ├── frontend/               # フロントエンド (React + TypeScript + Vite)
 ├── docs/                   # ドキュメント
-├── src/
-│   ├── main.py             # エントリポイント（バッチ処理）
-│   ├── __init__.py         # パッケージ初期化
-│   ├── api.py              # FastAPI サーバー・エンドポイント定義
-│   ├── service.py          # 収集〜分析〜ランキングのオーケストレーション
-│   ├── ranking.py          # ランキング生成ロジック
-│   ├── gemini_analyzer.py  # Gemini API による AI 分析
-│   ├── rss_fetcher.py      # RSS 取得
-│   ├── db.py               # DB接続管理・スキーマ定義・バッチ処理
-│   ├── crud.py             # データ操作（CRUD）ロジック(★v1.4.0)
-│   ├── mail_sender.py      # メール送信処理
-│   ├── models.py           # Pydantic・データモデル定義
-│   ├── config.py           # パス・API・通知しきい値など
-│   ├── constants.py        # アプリケーション定数定義
-│   ├── exceptions.py       # カスタム例外定義
-│   ├── queries.py          # データベースクエリ定義
-│   ├── logger.py
-│   └── my_utils.py         # SMTP 送信ヘルパ
+├── backend/
+│   └── src/
+│       ├── main.py             # エントリポイント（バッチ処理）
+│       ├── __init__.py         # パッケージ初期化
+│       ├── api.py              # FastAPI サーバー・エンドポイント定義
+│       ├── service.py          # 収集〜分析〜ランキングのオーケストレーション
+│       ├── ranking.py          # ランキング生成ロジック
+│       ├── gemini_analyzer.py  # Gemini API による AI 分析
+│       ├── rss_fetcher.py      # RSS 取得
+│       ├── db.py               # DB接続管理・スキーマ定義・バッチ処理
+│       ├── crud.py             # データ操作（CRUD）ロジック(★v1.4.0)
+│       ├── mail_sender.py      # メール送信処理
+│       ├── models.py           # Pydantic・データモデル定義
+│       ├── config.py           # パス・API・通知しきい値など
+│       ├── constants.py        # アプリケーション定数定義
+│       ├── exceptions.py       # カスタム例外定義
+│       ├── queries.py          # データベースクエリ定義
+│       ├── logger.py
+│       └── my_utils.py         # SMTP 送信ヘルパ
 ├── data/                   # SQLite（ホストボリュームとしてマウント）
 │   └── news.db
 └── logs/                   # ログ出力先（ホストボリュームとしてマウント）
