@@ -12,6 +12,4 @@ news_database.csv
 *.log
 chromedriver
 
-docs/
-
 .cursorignore
