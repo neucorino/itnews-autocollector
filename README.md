@@ -2,7 +2,7 @@
 
 # IT News Auto-Collector & Delivery System
 
-**Version 1.5.1** — バックエンドを `backend/src/` へ、Dockerfile を `docker/` へ再配置し、フロントエンドとバックエンドのディレクトリ分離を明確化。ローカル／コンテナ双方でプロジェクトルートを正しく解決するようパス解決を調整。
+**Version 1.5.2** — 設計・設定・運用の説明を `docs/` へ分離し、ドキュメントの正本を明確化。README をセットアップとドキュメント案内に絞り、フロントエンドの起動手順を追加。
 
 <p style="display: inline">
   <img src="https://img.shields.io/badge/-Python-F2C63C.svg?logo=python&style=for-the-badge">
